@@ -124,9 +124,8 @@ job-fetching-service/
 │   │   ├── jobicy.py
 │   │   ├── weworkremotely.py
 │   │   ├── remotive.py
-│   │   ├── ycombinator.py
-│   │   ├── adzuna.py
-│   │   └── jooble.py
+│   │   ├── adzuna.py                # implemented, needs credentials (disabled by default)
+│   │   └── jooble.py                # implemented, needs credentials (disabled by default)
 │   ├── discovery/
 │   │   ├── seed_sources.py          # curated static seed-company list loader
 │   │   └── probe.py                 # checks candidate co. for a live ATS board
@@ -344,9 +343,9 @@ per-source circuit breaker after N consecutive failures).
 | Jobicy | Public API | filter by date | |
 | We Work Remotely | RSS feed per category | RSS `pubDate` | |
 | Remotive | Public API | filter by date | |
-| Y Combinator Jobs | Public API/listing | filter by date | |
-| Adzuna | Official free/paid API (`app_id`/`app_key`, instant self-serve signup) | filter by date | aggregates from thousands of sites incl. many employer boards; free tier ~1,000 calls/mo |
-| Jooble | Official API (key on request) | filter by date | free tier capped at 500 calls lifetime — fine to start, paid arrangement needed for volume |
+| Adzuna | Official free/paid API (`app_id`/`app_key`, instant self-serve signup) | filter by date | **implemented, disabled**: needs real `app_id`/`app_key` in Settings — free tier ~1,000 calls/mo, signup is instant and free |
+| Jooble | Official API (key on request) | filter by date | **implemented, disabled**: needs a real API key in Settings — free tier capped at 500 calls lifetime, paid arrangement needed for real volume |
+| Y Combinator Jobs (Work at a Startup) | — | — | **Permanently out of scope, not "not yet built"**: confirmed no official public API exists (checked live — the jobs page 406s without JS, no documented `/api` endpoint; web search confirms only unofficial third-party scrapers and an unofficial Algolia-based community project exist). Consistent with the LinkedIn/Indeed/etc. policy below — not going to build an unauthorized scraper for it. |
 | LinkedIn, Indeed, Glassdoor, ZipRecruiter, Built In, Otta/WTTJ | **Out of direct scope** | — | Confirmed no self-serve API exists (Indeed's Publisher API dead since 2022/2023, Glassdoor's API dead since 2022) or explicit ToS prohibition + enterprise-only partner programs not open to this project (LinkedIn, ZipRecruiter, Built In, Otta). Coverage recovered indirectly via §5.4 and via Adzuna/Jooble's own aggregation. |
 | HiringCafe | **Out of direct scope** | — | Itself aggregates ~46 ATS platforms via their public APIs — its content is largely reachable directly through §5.4 instead of scraping it. |
 | Google Jobs | Deferred | — | Requires official partner API; out of scope for v1 |
@@ -741,6 +740,52 @@ before hashing.
   enough phrases to be safe. Applied retroactively to the real dev
   database (2 more misclassified rows deactivated, on top of the 49 the
   age-cutoff pass already caught). 133 tests passing.
+
+- The remaining 6 sources from §5.2: 3 implemented and live-tested
+  (SmartRecruiters, Jobicy, Himalayas), 2 implemented but pending
+  credentials only the user can provide (Adzuna, Jooble — free/instant
+  and requested-key signups respectively, see §5.2), 1 permanently
+  dropped after confirming live that no official API exists (Y
+  Combinator/Work at a Startup — same policy as LinkedIn/Indeed/etc.,
+  not scraping it). All 12 originally-planned connectors are now either
+  built or explicitly, permanently out of scope for a documented reason
+  — nothing left in a "maybe later" limbo state.
+  - SmartRecruiters needed a two-step fetch (list, then a detail call
+    per posting for the full JD) unlike the other ATS connectors, which
+    return everything inline — cut the cost with a legitimate
+    optimization: SmartRecruiters tells us `location.remote` directly in
+    the list response, so non-remote postings never trigger the
+    expensive detail fetch at all (verified live: Equinox's 736 postings
+    → 1 detail fetch, since SmartRecruiters customers skew toward
+    large retail/service companies with mostly in-person roles).
+  - Himalayas has no server-side category or date filter and a 100k+
+    job catalog — implemented bounded, cursor-based pagination that
+    stops once results are older than `max_job_age_days` (verified
+    newest-first ordering live first), rather than scanning the whole
+    catalog every run.
+  - Adzuna/Jooble are unit-tested against mocked responses built from
+    documented API formats, not live responses like every other
+    connector — flagged clearly in both files' docstrings as needing
+    re-verification once real credentials are available. Jooble's
+    connector deliberately makes exactly one request per fetch (no
+    pagination) since its free tier is a 500-call **lifetime** cap, not
+    monthly.
+  - Real bug caught by the Himalayas live run, not by any test: a
+    session shared across an entire source run (hundreds of sequential
+    commits for a source like Himalayas, which can yield ~1000 jobs in
+    one fetch) eventually crashed with a SQLAlchemy `MissingGreenlet`
+    error from accumulated session state — and because the crash also
+    broke `rollback()`, it escaped every isolation layer meant to
+    contain a single bad job. Fixed by giving each job its own short-
+    lived session in production (`scheduler/runner.py`), while tests
+    still share one session for their rollback-based isolation via the
+    existing `session=` override parameter. Also hardened the rollback
+    path itself: if rolling back fails too, that's now caught and
+    logged instead of propagating.
+  - 9 of 11 buildable sources now enabled live (adzuna/jooble disabled
+    pending credentials); total active jobs went from 4 → 142 in one
+    live run across all newly-enabled sources.
+  - 142 tests passing.
 
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

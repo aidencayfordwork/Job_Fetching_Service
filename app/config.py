@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     # catalog.
     max_job_age_days: int = 7
 
+    # Adzuna/Jooble connectors are implemented but stay disabled (see
+    # sources table) until these are set - free signup at
+    # https://developer.adzuna.com/signup (Adzuna) and a requested key at
+    # https://jooble.org/api/about (Jooble).
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
+    jooble_api_key: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

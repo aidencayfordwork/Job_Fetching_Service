@@ -1,10 +1,14 @@
 """Idempotent seed for the `sources` table.
 
-Populates one row per planned source (§5.2 of architecture.md) so the
-`sources` table — and later the scheduler — has something to iterate over
-as connectors land. All rows start `enabled=False`: a source is flipped on
-only once its connector module actually exists (Phase 4+), so the
-scheduler never tries to run a source that isn't implemented yet.
+Populates one row per implemented or planned source (§5.2 of
+architecture.md) so the `sources` table — and the scheduler — has
+something to iterate over. `enabled` reflects real state: True once a
+source has a working connector, False if it's implemented but needs
+credentials that only the user can provision (Adzuna, Jooble), or absent
+entirely if there's no official API to build against (Y Combinator/Work
+at a Startup - confirmed no public API exists, and LinkedIn/Indeed/
+Glassdoor/ZipRecruiter/Built In/Otta/HiringCafe - explicit ToS
+prohibitions, see architecture.md §5.2/§5.3).
 
 Safe to run repeatedly: uses ON CONFLICT DO NOTHING on the unique `name`,
 so it never overwrites interval/enabled changes made after the initial
@@ -29,25 +33,26 @@ ONE_HOUR = 60 * 60
 SIX_HOURS = 6 * 60 * 60
 
 SOURCES: list[dict] = [
-    {"name": "greenhouse", "kind": "ats", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "lever", "kind": "ats", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "ashby", "kind": "ats", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "smartrecruiters", "kind": "ats", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "remoteok", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "himalayas", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "jobicy", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "weworkremotely", "kind": "rss", "fetch_interval_seconds": ONE_HOUR},
-    {"name": "remotive", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "ycombinator", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS},
-    {"name": "adzuna", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS},
+    {"name": "greenhouse", "kind": "ats", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    {"name": "lever", "kind": "ats", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    {"name": "ashby", "kind": "ats", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    {"name": "smartrecruiters", "kind": "ats", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    {"name": "remoteok", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    {"name": "himalayas", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    {"name": "jobicy", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    {"name": "weworkremotely", "kind": "rss", "fetch_interval_seconds": ONE_HOUR, "enabled": True},
+    {"name": "remotive", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
+    # Implemented, but disabled until real app_id/app_key or an API key
+    # is configured in Settings - see architecture.md for signup links.
+    {"name": "adzuna", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": False},
     # Free tier is a 500-call lifetime cap - poll less often to conserve quota.
-    {"name": "jooble", "kind": "aggregator_api", "fetch_interval_seconds": SIX_HOURS},
+    {"name": "jooble", "kind": "aggregator_api", "fetch_interval_seconds": SIX_HOURS, "enabled": False},
 ]
 
 
 async def seed_sources(session: AsyncSession) -> int:
     stmt = pg_insert(Source).values(
-        [{**row, "enabled": False, "config": {}} for row in SOURCES]
+        [{**row, "config": {}} for row in SOURCES]
     ).on_conflict_do_nothing(index_elements=["name"])
     result = await session.execute(stmt)
     await session.commit()

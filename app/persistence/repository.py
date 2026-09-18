@@ -171,6 +171,27 @@ async def mark_expired_jobs(session: AsyncSession, grace_days: int = 5) -> int:
     return len(deactivated)
 
 
+async def deactivate_stale_by_posted_age(session: AsyncSession, max_age_days: int) -> int:
+    """Retroactive counterpart to the filter stage's own age cutoff
+    (architecture.md §2B): a job that was fine to keep when it was fetched
+    ages out over time even if it's never re-fetched (e.g. a source stops
+    listing it, or it's on a long fetch interval). Only touches rows with
+    a known posted_at - unknown-age rows aren't penalized here either,
+    matching the filter stage's policy."""
+    cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+    stmt = (
+        update(Job)
+        .where(Job.active.is_(True), Job.posted_at.is_not(None), Job.posted_at < cutoff)
+        .values(active=False, updated_at=datetime.now(UTC))
+        .returning(Job)
+    )
+    result = await session.execute(stmt)
+    deactivated = list(result.scalars())
+    for row in deactivated:
+        await _notify_job_event(session, "job.deactivated", row)
+    return len(deactivated)
+
+
 async def get_enabled_ats_companies(session: AsyncSession, ats_platform: str) -> list[AtsTarget]:
     stmt = select(AtsCompany).where(
         AtsCompany.ats_platform == ats_platform, AtsCompany.enabled.is_(True)

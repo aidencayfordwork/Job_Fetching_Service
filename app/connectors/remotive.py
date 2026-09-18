@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.connectors.base import JobDraft, RawJob, SourceConnector
 from app.core.http_client import default_client, with_retry
@@ -73,6 +73,10 @@ def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         return None
+    # Remotive's timestamps have no UTC offset (e.g. "2026-06-01T00:00:00")
+    # - fromisoformat leaves that naive. Assume UTC rather than pass a
+    # naive datetime downstream, where comparing it to an aware one raises.
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)

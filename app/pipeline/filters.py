@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
+from app.config import get_settings
 from app.connectors.base import JobDraft
 from app.pipeline.clearance import requires_active_clearance
 
@@ -176,10 +178,27 @@ class FilterOutcome:
     job: JobDraft
 
 
+def _is_too_old(posted_at: datetime | None, max_age_days: int) -> bool:
+    if posted_at is None:
+        # Unknown age isn't penalized - we're not confident it's stale,
+        # and inventing a cutoff for missing data isn't the goal here.
+        return False
+    if posted_at.tzinfo is None:
+        # A source connector produced a naive datetime (shouldn't happen,
+        # but comparing naive to aware raises rather than just being
+        # wrong) - assume UTC rather than crash the whole job.
+        posted_at = posted_at.replace(tzinfo=UTC)
+    cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+    return posted_at < cutoff
+
+
 def apply_filters(job: JobDraft) -> FilterOutcome:
     """Run the full KEEP/EXCLUDE gate. Must run after classify_level and
     classify_role. Populates job's remote/US/clearance fields regardless
     of the outcome (useful for debugging why a job was excluded)."""
+    if _is_too_old(job.posted_at, get_settings().max_job_age_days):
+        return FilterOutcome(False, "posted_too_long_ago", job)
+
     assessment = assess_remote_us(job)
     job.is_remote = assessment.is_remote
     job.us_eligible = assessment.us_eligible

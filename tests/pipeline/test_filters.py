@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from app.connectors.base import JobDraft
 from app.pipeline.filters import apply_filters, assess_remote_us
 
@@ -113,3 +115,32 @@ def test_apply_filters_excludes_bad_seniority():
     outcome = apply_filters(job)
     assert outcome.kept is False
     assert outcome.reason == "seniority_out_of_band"
+
+
+def test_apply_filters_excludes_job_posted_over_a_week_ago():
+    job = _job(original_location="Remote - US", posted_at=datetime.now(UTC) - timedelta(days=10))
+    outcome = apply_filters(job)
+    assert outcome.kept is False
+    assert outcome.reason == "posted_too_long_ago"
+
+
+def test_apply_filters_keeps_job_posted_within_a_week():
+    job = _job(original_location="Remote - US", posted_at=datetime.now(UTC) - timedelta(days=3))
+    outcome = apply_filters(job)
+    assert outcome.kept is True
+
+
+def test_apply_filters_keeps_job_with_unknown_posted_at():
+    job = _job(original_location="Remote - US", posted_at=None)
+    outcome = apply_filters(job)
+    assert outcome.kept is True
+
+
+def test_apply_filters_handles_naive_posted_at_without_crashing():
+    # A connector bug could theoretically produce a naive datetime - this
+    # must not crash the whole job, just treat it as if it were UTC.
+    naive_old = datetime.now() - timedelta(days=10)
+    job = _job(original_location="Remote - US", posted_at=naive_old)
+    outcome = apply_filters(job)
+    assert outcome.kept is False
+    assert outcome.reason == "posted_too_long_ago"

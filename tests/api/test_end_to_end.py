@@ -6,12 +6,20 @@ is mocked (this test doesn't hit greenhouse.io - see test_greenhouse.py
 etc. for that live-API verification, done manually during development).
 """
 
+from datetime import UTC, datetime, timedelta
+
 import respx
 from httpx import Response
 
 from app.connectors.greenhouse import GreenhouseConnector
 from app.db.models import AtsCompany, Source
 from app.scheduler.runner import run_source
+
+# Dates relative to "now" rather than hardcoded, so this test keeps
+# passing regardless of when it runs - these jobs need to land inside the
+# filter stage's rolling max_job_age_days window (architecture.md §2B),
+# not just before some fixed calendar date.
+_RECENT = (datetime.now(UTC) - timedelta(days=2)).isoformat()
 
 _PAYLOAD = {
     "jobs": [
@@ -27,8 +35,8 @@ _PAYLOAD = {
                 "$170,000 - $210,000 per year. Ability to obtain a security "
                 "clearance is a plus.&lt;/p&gt;"
             ),
-            "updated_at": "2026-09-01T10:00:00-04:00",
-            "first_published": "2026-08-30T10:00:00-04:00",
+            "updated_at": _RECENT,
+            "first_published": _RECENT,
         },
         {
             # Should be filtered out: hybrid, not fully remote.
@@ -38,8 +46,8 @@ _PAYLOAD = {
             "absolute_url": "https://boards.greenhouse.io/e2etestco/jobs/5551235",
             "location": {"name": "New York, NY (hybrid)"},
             "content": "&lt;p&gt;Hybrid role, 3 days a week in office.&lt;/p&gt;",
-            "updated_at": "2026-09-01T10:00:00-04:00",
-            "first_published": "2026-08-30T10:00:00-04:00",
+            "updated_at": _RECENT,
+            "first_published": _RECENT,
         },
         {
             # Should be filtered out: seniority band excluded.
@@ -49,8 +57,8 @@ _PAYLOAD = {
             "absolute_url": "https://boards.greenhouse.io/e2etestco/jobs/5551236",
             "location": {"name": "Remote - US"},
             "content": "&lt;p&gt;Summer internship program.&lt;/p&gt;",
-            "updated_at": "2026-09-01T10:00:00-04:00",
-            "first_published": "2026-08-30T10:00:00-04:00",
+            "updated_at": _RECENT,
+            "first_published": _RECENT,
         },
     ]
 }

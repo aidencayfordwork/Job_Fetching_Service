@@ -114,6 +114,39 @@ async def test_mark_expired_jobs_leaves_recent_rows_active(db_session):
     assert row.active is True
 
 
+async def test_deactivate_stale_by_posted_age_deactivates_old_postings(db_session):
+    # This sweeps the whole jobs table, not just this test's row - the dev
+    # DB may already hold other jobs, so assert on this row's own state
+    # rather than the global count (which the real data would throw off).
+    old_posted = datetime.now(UTC) - timedelta(days=10)
+    row, _ = await repository.upsert_job(db_session, _draft(posted_at=old_posted), [])
+
+    updated = await repository.deactivate_stale_by_posted_age(db_session, max_age_days=7)
+    assert updated >= 1
+
+    await db_session.refresh(row)
+    assert row.active is False
+
+
+async def test_deactivate_stale_by_posted_age_leaves_recent_postings_active(db_session):
+    recent_posted = datetime.now(UTC) - timedelta(days=2)
+    row, _ = await repository.upsert_job(db_session, _draft(posted_at=recent_posted), [])
+
+    await repository.deactivate_stale_by_posted_age(db_session, max_age_days=7)
+
+    await db_session.refresh(row)
+    assert row.active is True
+
+
+async def test_deactivate_stale_by_posted_age_leaves_unknown_age_active(db_session):
+    row, _ = await repository.upsert_job(db_session, _draft(posted_at=None), [])
+
+    await repository.deactivate_stale_by_posted_age(db_session, max_age_days=7)
+
+    await db_session.refresh(row)
+    assert row.active is True
+
+
 async def test_get_enabled_ats_companies_filters_by_platform_and_enabled(db_session):
     db_session.add_all(
         [

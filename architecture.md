@@ -439,10 +439,18 @@ the more direct ATS coverage grows, compounding over time.
    reject **active**-clearance requirements only (regex/keyword rules
    distinguishing "must currently hold" from "able to obtain" / "eligible
    for" / "public trust" / "background check" / "citizenship required",
-   which are allowed). Ambiguous remote/US-eligibility resolves to
-   *exclude*, not include — false negatives (missing a job) are
-   preferable to false positives (polluting results with jobs the
-   candidate can't actually take).
+   which are allowed); reject postings older than
+   `settings.max_job_age_days` (default 7 - a job posted more than a week
+   ago is excluded regardless of source, so the dataset stays current
+   rather than accumulating a source's full historical catalog; a
+   job with unknown `posted_at` is not penalized for missing data).
+   Ambiguous remote/US-eligibility resolves to *exclude*, not include —
+   false negatives (missing a job) are preferable to false positives
+   (polluting results with jobs the candidate can't actually take). The
+   age cutoff also applies retroactively: `deactivate_stale_by_posted_age`
+   runs alongside the existing `mark_expired_jobs` after every source run,
+   so a job that ages past the cutoff without being re-fetched still gets
+   marked inactive rather than lingering as "active" indefinitely.
 4. **Match keywords** (`pipeline/match_keywords.py`, implemented): matches
    job title + `cleaned_job_description` against the curated, versioned
    vocabulary in `config/keyword_taxonomy.yaml` (languages, frameworks,
@@ -702,6 +710,20 @@ before hashing.
     app to confirm no flakiness.
   - 120 backend unit/integration tests + 5 frontend E2E tests, all
     passing.
+
+- Requirement change: jobs posted more than a week ago are now excluded
+  (was: no age cutoff at all). Added `settings.max_job_age_days` (default
+  7), a new Filter-stage check (`posted_too_long_ago`), and a retroactive
+  `deactivate_stale_by_posted_age` alongside the existing
+  `mark_expired_jobs` so already-persisted jobs age out too, not just new
+  ones. Applied immediately to the real dev database: 49 of the 56
+  persisted jobs (most from the initial backfill runs, some over a month
+  old) were deactivated, leaving 7 active. Also fixed a latent bug this
+  surfaced: Remotive's `publication_date` has no UTC offset, producing a
+  naive datetime that would have raised when compared against an aware
+  cutoff - fixed at the source (assume UTC) and defensively in the filter
+  itself (any naive `posted_at` from any connector is treated as UTC
+  rather than crashing that job's processing). 127 tests passing.
 
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

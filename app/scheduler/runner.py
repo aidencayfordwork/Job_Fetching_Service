@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.connectors.ats_common import AtsMultiCompanyConnector
 from app.connectors.base import SourceConnector
 from app.core.logging import get_logger
@@ -82,9 +83,12 @@ async def _run_source(connector: SourceConnector, session: AsyncSession) -> None
     await session.commit()
 
     expired = await repository.mark_expired_jobs(session)
+    stale = await repository.deactivate_stale_by_posted_age(session, get_settings().max_job_age_days)
     await session.commit()
     if expired:
         log.info("jobs_marked_inactive", source=connector.name, count=expired)
+    if stale:
+        log.info("jobs_marked_inactive_by_age", source=connector.name, count=stale)
 
 
 async def _process_one(

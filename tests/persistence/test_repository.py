@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 
@@ -148,3 +149,35 @@ async def test_source_run_lifecycle(db_session):
 
     fetched = (await db_session.execute(select(SourceRun).where(SourceRun.id == run.id))).scalar_one()
     assert fetched.jobs_new == 3
+
+
+async def test_upsert_new_job_emits_created_event(db_session, monkeypatch):
+    mock_notify = AsyncMock()
+    monkeypatch.setattr(repository, "_notify_job_event", mock_notify)
+
+    row, _ = await repository.upsert_job(db_session, _draft(), [])
+
+    mock_notify.assert_awaited_once_with(db_session, "job.created", row)
+
+
+async def test_upsert_same_source_update_emits_updated_event(db_session, monkeypatch):
+    await repository.upsert_job(db_session, _draft(), [])
+
+    mock_notify = AsyncMock()
+    monkeypatch.setattr(repository, "_notify_job_event", mock_notify)
+    row, _ = await repository.upsert_job(db_session, _draft(job_title="Updated Title"), [])
+
+    mock_notify.assert_awaited_once_with(db_session, "job.updated", row)
+
+
+async def test_mark_expired_jobs_emits_deactivated_event(db_session, monkeypatch):
+    row, _ = await repository.upsert_job(db_session, _draft(), [])
+    row.last_seen_at = datetime.now(UTC) - timedelta(days=10)
+    await db_session.flush()
+
+    mock_notify = AsyncMock()
+    monkeypatch.setattr(repository, "_notify_job_event", mock_notify)
+    await repository.mark_expired_jobs(db_session, grace_days=5)
+
+    assert mock_notify.await_count == 1
+    assert mock_notify.await_args.args[1] == "job.deactivated"

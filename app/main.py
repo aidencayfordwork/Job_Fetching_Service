@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.api.routes_jobs import router as jobs_router
 from app.api.routes_sources import router as sources_router
 from app.api.routes_stats import router as stats_router
+from app.api.routes_stream import router as stream_router
 from app.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.base import engine
@@ -37,6 +38,7 @@ app = FastAPI(title="Job Fetching Service", lifespan=lifespan)
 app.include_router(jobs_router)
 app.include_router(sources_router)
 app.include_router(stats_router)
+app.include_router(stream_router)
 
 
 @app.get("/health")

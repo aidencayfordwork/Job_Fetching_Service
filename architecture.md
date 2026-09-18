@@ -655,5 +655,15 @@ before hashing.
   pagination, source health, and stats all confirmed working end-to-end.
   116 unit tests passing.
 
+- Phase 11 (real-time layer) — done: `GET /stream` SSE endpoint backed by
+  Postgres LISTEN/NOTIFY. `persistence/repository.py` emits
+  `job.created`/`job.updated`/`job.deactivated` on every write (the
+  deactivation one via an UPDATE...RETURNING so each expired job gets its
+  own event). Verified live end-to-end, not just unit-tested: started the
+  real app, connected an SSE client, persisted a job through the real
+  repository layer in a separate call, and confirmed the client received
+  the `job.created` event with the correct payload in real time.
+  119 unit tests passing.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

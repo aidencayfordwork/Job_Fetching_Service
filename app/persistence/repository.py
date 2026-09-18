@@ -12,10 +12,11 @@ row. Three-way identity resolution per job:
 
 from __future__ import annotations
 
+import json
 from dataclasses import fields
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.ats_common import AtsTarget
@@ -25,6 +26,24 @@ from app.db.models import AtsCompany, Job, JobAltSource, Source, SourceRun
 from app.pipeline.dedupe import ExistingJobRef, find_duplicate, is_higher_priority_source
 
 log = get_logger(__name__)
+
+JOB_EVENTS_CHANNEL = "job_events"
+
+
+async def _notify_job_event(session: AsyncSession, event: str, row: Job) -> None:
+    """NOTIFY on JOB_EVENTS_CHANNEL for the /stream SSE endpoint
+    (architecture.md §9). Postgres defers delivery until the transaction
+    commits, so this is safe to call before the caller's final commit()."""
+    payload = json.dumps(
+        {
+            "event": event,
+            "job_id": row.id,
+            "source": row.source,
+            "company_name": row.company_name,
+            "job_title": row.job_title,
+        }
+    )
+    await session.execute(text("SELECT pg_notify(:channel, :payload)"), {"channel": JOB_EVENTS_CHANNEL, "payload": payload})
 
 # JobDraft field names that map 1:1 onto Job columns of the same name.
 _DIRECT_FIELDS = [
@@ -74,6 +93,7 @@ async def upsert_job(
     )
     if existing_same_source is not None:
         _apply_draft_to_row(existing_same_source, job, now)
+        await _notify_job_event(session, "job.updated", existing_same_source)
         return existing_same_source, False
 
     duplicate = find_duplicate(job, dedupe_candidates)
@@ -99,6 +119,7 @@ async def upsert_job(
             canonical_row.last_seen_at = now
             canonical_row.active = True
 
+        await _notify_job_event(session, "job.updated", canonical_row)
         return canonical_row, False
 
     new_row = Job(**{name: getattr(job, name) for name in _DIRECT_FIELDS})
@@ -107,6 +128,7 @@ async def upsert_job(
     new_row.active = True
     session.add(new_row)
     await session.flush()
+    await _notify_job_event(session, "job.created", new_row)
     return new_row, True
 
 
@@ -140,9 +162,13 @@ async def mark_expired_jobs(session: AsyncSession, grace_days: int = 5) -> int:
         update(Job)
         .where(Job.active.is_(True), Job.last_seen_at < cutoff)
         .values(active=False, updated_at=datetime.now(UTC))
+        .returning(Job)
     )
     result = await session.execute(stmt)
-    return result.rowcount or 0
+    deactivated = list(result.scalars())
+    for row in deactivated:
+        await _notify_job_event(session, "job.deactivated", row)
+    return len(deactivated)
 
 
 async def get_enabled_ats_companies(session: AsyncSession, ats_platform: str) -> list[AtsTarget]:

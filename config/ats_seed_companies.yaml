@@ -1,0 +1,60 @@
+# Static bootstrap seed for ATS company discovery (architecture.md §5.4).
+#
+# This is a day-one starting point only — NOT the primary coverage
+# mechanism. The organic discovery loop (companies observed via the
+# aggregator connectors) is what's meant to grow this list over time with
+# no manual maintenance. Add to this file any time you know of a company
+# worth tracking directly; app/discovery/probe.py figures out which ATS
+# platform (if any) they use.
+companies:
+  - Airbnb
+  - Stripe
+  - Notion
+  - Linear
+  - Ramp
+  - Brex
+  - Rippling
+  - Vanta
+  - Replit
+  - Ro
+  - Figma
+  - Discord
+  - Reddit
+  - Dropbox
+  - GitLab
+  - Automattic
+  - Zapier
+  - DigitalOcean
+  - Cloudflare
+  - HashiCorp
+  - Elastic
+  - MongoDB
+  - Confluent
+  - Datadog
+  - PagerDuty
+  - Twilio
+  - Segment
+  - Asana
+  - Airtable
+  - Canva
+  - Coinbase
+  - Robinhood
+  - Plaid
+  - Affirm
+  - Webflow
+  - Vercel
+  - Netlify
+  - CircleCI
+  - Postman
+  - Grammarly
+  - Duolingo
+  - Calendly
+  - Miro
+  - monday.com
+  - Loom
+  - Retool
+  - Scale AI
+  - Anthropic
+  - OpenAI
+  - Hugging Face
+  - Weights & Biases

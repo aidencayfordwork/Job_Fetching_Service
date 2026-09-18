@@ -128,7 +128,7 @@ job-fetching-service/
 │   │   ├── adzuna.py
 │   │   └── jooble.py
 │   ├── discovery/
-│   │   ├── seed_sources.py          # YC directory, curated static list loader
+│   │   ├── seed_sources.py          # curated static seed-company list loader
 │   │   └── probe.py                 # checks candidate co. for a live ATS board
 │   ├── pipeline/
 │   │   ├── normalize.py              # raw payload -> JobDraft
@@ -191,7 +191,7 @@ table that scales coverage; growing it is the primary lever for the
 | company_name | text | |
 | ats_platform | text | `greenhouse` \| `lever` \| `ashby` \| `smartrecruiters` |
 | board_token | text | the slug used in the platform's public board URL |
-| source_of_discovery | text | `organic` (found via an aggregator-observed company name) \| `seed_static` \| `yc_directory` \| `manual` |
+| source_of_discovery | text | `organic` (found via an aggregator-observed company name) \| `seed_static` \| `manual` |
 | verified | boolean | true once the board URL is confirmed live and returns jobs |
 | enabled | boolean default true | |
 | discovered_at | timestamptz | |
@@ -391,10 +391,14 @@ coverage the six out-of-scope platforms would otherwise have provided.
    re-list it. A 404 is simply discarded, no retries needed — this is read
    access to explicitly public, documented endpoints, not scraping.
 3. **Bootstrap seed (secondary, day-one only)**:
-   `config/ats_seed_companies.yaml` (static, user-extensible) + YC's public
-   company directory, so the system has meaningful coverage before the
-   organic loop has had time to run. Not required for long-term coverage —
-   organic discovery supersedes it within the first few fetch cycles.
+   `config/ats_seed_companies.yaml` (static, user-extensible, ~50 companies
+   to start), so the system has meaningful coverage before the organic
+   loop has had time to run. Not required for long-term coverage — organic
+   discovery supersedes it within the first few fetch cycles. (A YC
+   public-company-directory loader was considered but dropped: YC doesn't
+   publish a documented public API for it, only an internal search backend
+   their own site calls — pulling from that would cut against the
+   "official/public APIs only" line drawn for every other source.)
 4. **Scheduled discovery job** (`scheduler/discovery_job.py`): processes
    the queued candidates and periodically (e.g. weekly) re-verifies
    existing boards are still live; a board that starts 404ing gets
@@ -554,9 +558,10 @@ before hashing.
 
 ## 12. Decisions & defaults (see chat for rationale)
 
-- Company seed data: YC public directory + static curated
-  `config/ats_seed_companies.yaml`, extensible any time, plus automated
-  probing — no external paid data source needed to start.
+- Company seed data: static curated `config/ats_seed_companies.yaml`
+  (~50 companies), extensible any time, plus organic discovery from every
+  aggregator-observed company name — no external paid data source, and no
+  dependency on YC's undocumented internal directory API.
 - Hosting: local Docker Compose for now; containerized so a cloud move
   later is a deploy-target change, not a rewrite.
 - API auth: shared API key header for v1.
@@ -574,7 +579,18 @@ before hashing.
   endpoint, verified end-to-end.
 - Keyword taxonomy (`config/keyword_taxonomy.yaml`) + `match_keywords.py`
   — done, unit-tested.
-- Phase 3 (source-connector interface + registry) — in progress.
+- Phase 3 (source-connector interface + registry) — done: `SourceConnector`
+  ABC, `JobDraft`, registry, idempotent `sources` seed script.
+- Phase 4 (first real connectors + ATS discovery) — done: Greenhouse,
+  Lever, Ashby, RemoteOK, Remotive, We Work Remotely all fetch + normalize
+  against their real live APIs (field shapes verified against production
+  responses, not guessed). Shared `clean_html`/`parse_salary` helpers in
+  `pipeline/normalize.py`. ATS discovery (`discovery/probe.py` +
+  `discovery/seed_sources.py`) verified live against real companies
+  (Airbnb→Greenhouse, Ro→Lever, Linear→Ashby, unknown company→no hits).
+  29 unit tests passing (respx-mocked, no live-network dependency for
+  future runs). Remaining sources (SmartRecruiters, Jobicy, Himalayas, YC,
+  Adzuna, Jooble) deferred to a later pass.
 
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

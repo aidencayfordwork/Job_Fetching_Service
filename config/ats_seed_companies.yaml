@@ -58,3 +58,199 @@ companies:
   - OpenAI
   - Hugging Face
   - Weights & Biases
+
+  # Expanded 2026-09-18: broadening beyond the original day-one list
+  # across more categories (infra/cloud, fintech, dev tools, AI/data,
+  # security, e-commerce, health tech, crypto, HR tech) - still all
+  # real, known VC-backed/public tech companies plausible for direct
+  # Greenhouse/Lever/Ashby/SmartRecruiters coverage. Misses here are
+  # cheap (probe_company just gets a 404 and moves on) and
+  # already-known companies are skipped by the discovery job, so
+  # erring generous is fine.
+  - Snowflake
+  - Databricks
+  - Fivetran
+  - dbt Labs
+  - Sigma Computing
+  - Amplitude
+  - Mixpanel
+  - Heap
+  - LaunchDarkly
+  - Sentry
+  - New Relic
+  - Honeycomb
+  - Chronosphere
+  - Grafana Labs
+  - Temporal
+  - Render
+  - Fly.io
+  - Supabase
+  - PlanetScale
+  - Neon
+  - CockroachDB
+  - Redis
+  - Pinecone
+  - Weaviate
+  - LangChain
+  - Cohere
+  - Mistral AI
+  - Perplexity
+  - Runway
+  - Together AI
+  - Modal
+  - Replicate
+  - Character.AI
+  - Adept
+  - Glean
+  - Harvey
+  - Sierra
+  - Crusoe
+  - Lambda
+  - CoreWeave
+  - Wiz
+  - Snyk
+  - 1Password
+  - Okta
+  - Auth0
+  - Tailscale
+  - Fastly
+  - Chainguard
+  - Semgrep
+  - Socket
+  - Abnormal Security
+  - Arctic Wolf
+  - Rapid7
+  - Tenable
+  - CrowdStrike
+  - SentinelOne
+  - Deel
+  - Remote
+  - Gusto
+  - Justworks
+  - Carta
+  - Mercury
+  - Modern Treasury
+  - Unit
+  - Marqeta
+  - Chime
+  - Current
+  - Wealthfront
+  - Betterment
+  - Addepar
+  - Flexport
+  - Samsara
+  - Motive
+  - Applied Intuition
+  - Anduril
+  - Shield AI
+  - Lattice
+  - Culture Amp
+  - Greenhouse Software
+  - Ashby
+  - Workable
+  - BambooHR
+  - Zenefits
+  - Checkr
+  - Persona
+  - Alloy
+  - Unit21
+  - Sardine
+  - Chainalysis
+  - Fireblocks
+  - Anchorage Digital
+  - Kraken
+  - Gemini
+  - Circle
+  - Consensys
+  - Uniswap Labs
+  - OpenSea
+  - Alchemy
+  - Dune Analytics
+  - Messari
+  - Instacart
+  - DoorDash
+  - Faire
+  - Whatnot
+  - StockX
+  - Thrasio
+  - Attentive
+  - Klaviyo
+  - Iterable
+  - Braze
+  - Customer.io
+  - Postscript
+  - Gorgias
+  - Intercom
+  - Front
+  - Help Scout
+  - Zendesk
+  - Freshworks
+  - HubSpot
+  - Clari
+  - Gong
+  - Outreach
+  - Apollo.io
+  - Clearbit
+  - ZoomInfo
+  - Bill.com
+  - Navan
+  - Deputy
+  - When I Work
+  - Homebase
+  - ClickUp
+  - Height
+  - Coda
+  - Superhuman
+  - Descript
+  - Riverside.fm
+  - Synthesia
+  - ElevenLabs
+  - Suno
+  - Udio
+  - Oura
+  - Whoop
+  - Levels Health
+  - Tempus
+  - Cedar
+  - Included Health
+  - Maven Clinic
+  - Hims & Hers
+  - GoodRx
+  - Devoted Health
+  - Bright Health
+  - Clover Health
+  - Cityblock Health
+  - Color Health
+  - Commure
+  - Abridge
+  - Ambience Healthcare
+  - Formation Bio
+  - Insitro
+  - Recursion Pharmaceuticals
+  - Benchling
+  - Latch
+  - ButterflyMX
+  - Verkada
+  - Arlo
+  - Wyze
+  - Ring
+  - iRobot
+  - Relativity Space
+  - Varda Space Industries
+  - Astranis
+  - Planet Labs
+  - Redwood Materials
+  - Form Energy
+  - Commonwealth Fusion Systems
+  - Helion Energy
+  - Zipline
+  - Skydio
+  - Nuro
+  - Waabi
+  - Aurora Innovation
+  - Cruise
+  - Zoox
+  - Rivian
+  - Lucid Motors
+  - ChargePoint
+  - EVgo

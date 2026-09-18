@@ -875,5 +875,22 @@ before hashing.
   source. Confirmed via `/stats`: 211 active jobs, 262 added in the last
   24h.
 
+- Expanded `config/ats_seed_companies.yaml` from 52 to 238 companies
+  (biggest lever for coverage, per §5.4 — the static list is a bootstrap
+  for direct ATS discovery, which is preferred over aggregator sources
+  since Greenhouse/Lever/Ashby postings are the canonical, highest-
+  dedup-priority source). Added real, known VC-backed/public tech
+  companies across categories not well represented in the original list:
+  infra/cloud, dev tools, AI/ML, security, fintech, HR tech, e-commerce,
+  health tech, crypto, and robotics/hardware. Verified live: restarted
+  the backend (which runs discovery immediately on startup) and it found
+  66 new confirmed ATS boards in one run (100 → 166 known companies;
+  greenhouse 55→91, ashby 38→59, lever 7→16) out of the 200 candidates
+  it checks per run (`candidate_limit`) — organic candidates (company
+  names already seen in fetched jobs) take priority over the static
+  seed, so the remaining new seed entries not covered by this run will
+  get probed on the next weekly discovery cycle rather than all at once.
+  149 tests passing (unaffected — this is a config-only change).
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

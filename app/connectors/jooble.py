@@ -1,11 +1,10 @@
 """Jooble connector.
 
-UNTESTED AGAINST THE LIVE API: Jooble requires a real API key (requested
-via a form at https://jooble.org/api/about, not instant - see
-architecture.md), which this environment doesn't have. Built against
-Jooble's documented request/response format instead of a live response
-sample, unlike every other connector in this project. Re-verify against
-a real response once a key is available.
+Verified live once a real API key was provided (requested via a form at
+https://jooble.org/api/about, not instant). All field names matched what
+was built from documented API format ahead of time, except `updated`,
+which has no UTC offset at all (unlike most other sources' dates) -
+handled the same way as Remotive's equivalent naive-datetime gap.
 
 The free tier is a 500-CALL LIFETIME cap, not a monthly one - this
 connector deliberately makes exactly one request per fetch (a single
@@ -17,7 +16,7 @@ budget, but pagination would burn through 500 calls in days.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.config import get_settings
 from app.connectors.base import JobDraft, RawJob, SourceConnector
@@ -101,6 +100,10 @@ def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    # Jooble's timestamps have no UTC offset at all (confirmed live:
+    # "2026-09-17T00:00:00.0000000") - assume UTC rather than pass a
+    # naive datetime downstream, same fix as Remotive's connector.
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)

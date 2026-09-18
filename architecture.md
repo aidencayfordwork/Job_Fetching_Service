@@ -124,8 +124,8 @@ job-fetching-service/
 │   │   ├── jobicy.py
 │   │   ├── weworkremotely.py
 │   │   ├── remotive.py
-│   │   ├── adzuna.py                # implemented, needs credentials (disabled by default)
-│   │   └── jooble.py                # implemented, needs credentials (disabled by default)
+│   │   ├── adzuna.py                # live-verified with real credentials
+│   │   └── jooble.py                # live-verified with real credentials
 │   ├── discovery/
 │   │   ├── seed_sources.py          # curated static seed-company list loader
 │   │   └── probe.py                 # checks candidate co. for a live ATS board
@@ -343,8 +343,8 @@ per-source circuit breaker after N consecutive failures).
 | Jobicy | Public API | filter by date | |
 | We Work Remotely | RSS feed per category | RSS `pubDate` | |
 | Remotive | Public API | filter by date | |
-| Adzuna | Official free/paid API (`app_id`/`app_key`, instant self-serve signup) | filter by date | **implemented, disabled**: needs real `app_id`/`app_key` in Settings — free tier ~1,000 calls/mo, signup is instant and free |
-| Jooble | Official API (key on request) | filter by date | **implemented, disabled**: needs a real API key in Settings — free tier capped at 500 calls lifetime, paid arrangement needed for real volume |
+| Adzuna | Official free/paid API (`app_id`/`app_key`, instant self-serve signup) | filter by date | **live and enabled**; free tier ~1,000 calls/mo; queries `what=software engineer` to keep results relevant |
+| Jooble | Official API (key on request) | filter by date | **live and enabled**; free tier capped at 500 calls lifetime — one request per fetch by design, no pagination |
 | Y Combinator Jobs (Work at a Startup) | — | — | **Permanently out of scope, not "not yet built"**: confirmed no official public API exists (checked live — the jobs page 406s without JS, no documented `/api` endpoint; web search confirms only unofficial third-party scrapers and an unofficial Algolia-based community project exist). Consistent with the LinkedIn/Indeed/etc. policy below — not going to build an unauthorized scraper for it. |
 | LinkedIn, Indeed, Glassdoor, ZipRecruiter, Built In, Otta/WTTJ | **Out of direct scope** | — | Confirmed no self-serve API exists (Indeed's Publisher API dead since 2022/2023, Glassdoor's API dead since 2022) or explicit ToS prohibition + enterprise-only partner programs not open to this project (LinkedIn, ZipRecruiter, Built In, Otta). Coverage recovered indirectly via §5.4 and via Adzuna/Jooble's own aggregation. |
 | HiringCafe | **Out of direct scope** | — | Itself aggregates ~46 ATS platforms via their public APIs — its content is largely reachable directly through §5.4 instead of scraping it. |
@@ -786,6 +786,44 @@ before hashing.
     pending credentials); total active jobs went from 4 → 142 in one
     live run across all newly-enabled sources.
   - 142 tests passing.
+
+- Adzuna and Jooble now live-verified: the user obtained real credentials
+  (Adzuna: free/instant signup; Jooble: requested key) and both
+  connectors were re-tested against the real APIs. Every field name
+  matched what was built from documented API format ahead of time,
+  except two real gaps fixed after being found live:
+  - Adzuna returns `salary_min`/`salary_max` as `0` rather than omitted
+    when unstated (same placeholder pattern already handled for
+    RemoteOK) - fixed with the same `or None` guard.
+  - Jooble's `updated` timestamp has no UTC offset at all (confirmed
+    live: `"2026-09-17T00:00:00.0000000"`) - fixed the same way as
+    Remotive's equivalent gap (assume UTC for a naive parsed datetime).
+  - Adzuna without a keyword filter returned 0 kept jobs out of the
+    first 200 (newest-sorted results were dominated by trucking/
+    logistics/healthcare postings) - added `what=software engineer` to
+    the query, which alone lifted that to 81/500 kept while still
+    surfacing a good mix of role families (backend, embedded, AI, etc.).
+  - That same live run surfaced a second, more significant bug:
+    `classify_role`'s JD-body fallback (already narrowed once, after the
+    recruiter/PM false positives) was still unsafe even for the
+    "specific" patterns kept in place - a company's generic "About us"
+    boilerplate mentioning "Machine Learning and Software Engineering"
+    as capabilities, not role descriptions, appeared at the top of every
+    one of that company's postings and misclassified 8 clearly
+    non-engineering roles (Power BI Analyst, Cloud Architect, etc.) as
+    "Machine Learning". Removed JD-body fallback from `classify_role`
+    entirely - it's title-only now. Confirmed live: all 8 previously-
+    misclassified postings now correctly excluded
+    (`not_a_target_role`); kept count went 81 -> 66 (the 15 lost were
+    exactly the false positives).
+  - Both sources enabled and run live through the real scheduler:
+    Adzuna fetched=500 new=59, Jooble fetched=30 new=5 (deliberately
+    capped at one request per fetch - free tier is a 500-call
+    **lifetime**, not monthly, cap).
+- **All 11 buildable sources are now enabled and healthy** (Y Combinator
+  remains the one permanent exception, per its own entry above). Total
+  active jobs: 4 → 142 → 206 across this session's connector work.
+  143 tests passing.
 
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

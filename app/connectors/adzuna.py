@@ -1,14 +1,11 @@
 """Adzuna connector.
 
-UNTESTED AGAINST THE LIVE API: Adzuna requires a real app_id/app_key
-(free, instant signup at https://developer.adzuna.com/signup - see
-architecture.md), which this environment doesn't have. Built against
-Adzuna's documented request/response format instead of a live response
-sample, unlike every other connector in this project. Defensive .get()
-usage throughout so an unexpected/missing field degrades gracefully
-rather than crashing a whole fetch. Re-verify against a real response
-once credentials are available, the way every other connector already
-has been.
+Verified live once real app_id/app_key credentials were provided (free,
+instant signup at https://developer.adzuna.com/signup). Every field name
+matched what was built from documented API format ahead of time. One
+real gap found live: `salary_min`/`salary_max` come back as `0` rather
+than omitted when unstated (same placeholder pattern as RemoteOK) -
+handled with the same `or None` fix.
 
 Adzuna's search API returns a truncated description snippet, not the
 full original JD text (they link out to the original posting instead) -
@@ -55,6 +52,15 @@ class AdzunaConnector(SourceConnector):
                             "app_key": app_key,
                             "results_per_page": _RESULTS_PER_PAGE,
                             "content-type": "application/json",
+                            # Without a keyword, Adzuna's newest-first feed
+                            # is dominated by high-volume industries (verified
+                            # live: trucking/logistics/healthcare crowded out
+                            # every engineering result in the first 200
+                            # unfiltered, newest-sorted jobs). This still
+                            # returns a good mix of role families (backend,
+                            # embedded, AI, etc.) since it's a general text
+                            # search, not an exact-phrase match.
+                            "what": "software engineer",
                             "sort_by": "date",
                         },
                     )
@@ -87,10 +93,13 @@ class AdzunaConnector(SourceConnector):
 
         # Adzuna flags ML-predicted salary estimates distinctly from
         # employer-stated ones - treat a predicted figure as unknown
-        # rather than presenting a model's guess as fact.
+        # rather than presenting a model's guess as fact. It also uses
+        # 0 as a "not stated" placeholder (confirmed live) rather than
+        # omitting the field, same as RemoteOK - `or None` treats that
+        # placeholder as unknown instead of a literal $0 salary.
         is_predicted = str(raw.get("salary_is_predicted", "0")) == "1"
-        salary_min = None if is_predicted else raw.get("salary_min")
-        salary_max = None if is_predicted else raw.get("salary_max")
+        salary_min = None if is_predicted else (raw.get("salary_min") or None)
+        salary_max = None if is_predicted else (raw.get("salary_max") or None)
 
         employment_type = _CONTRACT_TIME_MAP.get((raw.get("contract_time") or "").lower())
 

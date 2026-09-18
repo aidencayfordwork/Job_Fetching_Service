@@ -100,8 +100,8 @@ class Job(Base):
     # Classification
     level: Mapped[str | None] = mapped_column(String(16), nullable=True)  # MID | SENIOR | STAFF | LEAD
     role_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    main_stack: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
-    full_technology_stack: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    main_stack: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
+    full_technology_stack: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
     required_years_experience: Mapped[int | None] = mapped_column(nullable=True)
     employment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     industry: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -110,8 +110,8 @@ class Job(Base):
     is_remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     us_eligible: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     remote_scope: Mapped[str | None] = mapped_column(String(32), nullable=True)  # US | US-partial | Global | Unknown
-    eligible_states: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
-    excluded_states: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    eligible_states: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
+    excluded_states: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
     timezone_requirement: Mapped[str | None] = mapped_column(String(128), nullable=True)
     original_location: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
@@ -132,10 +132,10 @@ class Job(Base):
     # JD
     raw_job_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     cleaned_job_description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    responsibilities: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
-    required_skills: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
-    preferred_skills: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
-    matched_keywords: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    responsibilities: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
+    required_skills: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
+    preferred_skills: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
+    matched_keywords: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, server_default="{}")
 
     # Internal
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

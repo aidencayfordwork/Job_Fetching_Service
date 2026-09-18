@@ -639,5 +639,21 @@ before hashing.
   (scoped assertions, not table-wide counts) after that live run
   surfaced 5 tests that had wrongly assumed an empty table.
 
+- Phase 10 (REST API) — done: `GET /jobs` (filterable by level, role,
+  technology, keyword, company, salary range, source, free-text `q`;
+  paginated), `GET /jobs/new?since=`, `GET /jobs/{id}`, `GET /sources`,
+  `GET /sources/{name}/runs`, `GET /sources/{name}/health`,
+  `GET /ats-companies`, `GET /stats`. `X-API-Key` auth on every route.
+  Two real bugs caught and fixed while wiring this up: `vars()` doesn't
+  work on slotted dataclasses (`SourceHealth`) - switched to
+  `dataclasses.asdict()`; and the `jobs` array columns (main_stack,
+  matched_keywords, etc.) were nullable with no default, so a row without
+  every field explicitly set produced `NULL` where the API schema
+  required a list - migrated them to NOT NULL with an empty-array default
+  (backfilling existing rows first). Verified against the live app and
+  real persisted data (not just tests): auth enforcement, filtering,
+  pagination, source health, and stats all confirmed working end-to-end.
+  116 unit tests passing.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

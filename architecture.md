@@ -620,5 +620,24 @@ before hashing.
   `process_job()` call for the persistence layer to use. 89 unit tests
   passing.
 
+- Phase 9 (Scheduler + fetch workers + discovery job + source health) —
+  done: `persistence/repository.py` (idempotent 3-way upsert: same-source
+  update, cross-source dedup/promotion via job_alt_sources, expiry
+  marking), `scheduler/runner.py` (per-job commit + per-job exception
+  isolation, so one bad job/company never rolls back a whole run's
+  progress), `scheduler/scheduler.py` (APScheduler, one job per enabled
+  source at its own interval, `max_instances=1` as the per-source lock),
+  `scheduler/discovery_job.py`, `scheduler/health.py`. Wired into the
+  FastAPI lifespan (toggleable via `scheduler_enabled`).
+  Validated with a full live run against the real dev database: enabled
+  greenhouse/lever/ashby/remoteok, ran each end-to-end against their real
+  APIs, persisted 55 real jobs, then ran discovery, which organically
+  found 3 new companies (from jobs.company_name) and validated 10 more
+  from the static seed list - including a genuine edge case (Reddit
+  turned out to have boards on both Greenhouse and Ashby, handled without
+  conflict). 102 unit tests passing, all robust to a non-empty database
+  (scoped assertions, not table-wide counts) after that live run
+  surfaced 5 tests that had wrongly assumed an empty table.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

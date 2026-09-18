@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     default_fetch_interval_seconds: int = 3 * 60 * 60
     discovery_interval_seconds: int = 7 * 24 * 60 * 60
+    scheduler_enabled: bool = True
 
 
 @lru_cache

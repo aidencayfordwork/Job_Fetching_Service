@@ -16,7 +16,7 @@ from app.connectors.base import JobDraft
 from app.pipeline.classify_level import classify_level
 from app.pipeline.classify_role import classify_role
 from app.pipeline.classify_stack import classify_stack
-from app.pipeline.dedupe import ExistingJobRef, find_duplicate
+from app.pipeline.dedupe import ExistingJobRef, compute_fingerprint, find_duplicate
 from app.pipeline.filters import apply_filters
 from app.pipeline.match_keywords import match_keywords
 
@@ -39,6 +39,10 @@ def process_job(job: JobDraft, dedupe_candidates: list[ExistingJobRef] | None = 
         return PipelineResult(kept=False, reason=outcome.reason, job=job, duplicate_of=None)
 
     job.matched_keywords = match_keywords(job.job_title, job.cleaned_job_description)
+    # Depends on remote_scope, which apply_filters just set - must run
+    # after Filter. The `jobs.canonical_fingerprint` column is NOT NULL,
+    # so this has to happen before persistence ever sees a kept job.
+    job.canonical_fingerprint = compute_fingerprint(job)
 
     duplicate = find_duplicate(job, dedupe_candidates) if dedupe_candidates else None
 

@@ -683,5 +683,25 @@ before hashing.
   "™" in a job title - traced back to RemoteOK's own raw API response
   before concluding it wasn't a bug in this pipeline.)
 
+- Phase 14 (end-to-end testing) — done:
+  - Backend: `tests/api/test_end_to_end.py` - a mocked Greenhouse HTTP
+    response goes through the real `scheduler.run_source()` (classify →
+    filter → match keywords → dedupe → persist) and is verified through
+    the real REST API, including a job deliberately excluded for being
+    hybrid and one for being an internship, proving the filters actually
+    apply end-to-end and not just in isolated unit tests. Building it
+    surfaced a real gap in test setup (not app behavior): `run_source`
+    sources its company list from `ats_companies` filtered by
+    `connector.name`, not from whatever's set directly on the connector
+    instance - a useful reminder of how that wiring actually works.
+  - Frontend: a proper `@playwright/test` suite (`frontend/e2e/`,
+    `npm run test:e2e`) replacing the ad hoc driver script used earlier -
+    covers loading real job cards, level filtering, pagination, and the
+    View JD modal on the Jobs page, plus the stats tiles and source
+    health table on the Source Status page. Run twice against the live
+    app to confirm no flakiness.
+  - 120 backend unit/integration tests + 5 frontend E2E tests, all
+    passing.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

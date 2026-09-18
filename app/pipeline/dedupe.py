@@ -24,7 +24,12 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _FUZZY_TITLE_THRESHOLD = 90.0
 
 # Higher wins when the same job is found on more than one source (§5.3):
-# the employer's own ATS posting is preferred over an aggregator listing.
+# the employer's own ATS posting is preferred over an aggregator listing
+# or a manually-submitted link (POST /jobs/submit) - neither of those is
+# the original posting. An unrecognized source name defaults to 0 (via
+# .get() in is_higher_priority_source below), which is conservative: it
+# never outranks anything, so a typo'd or new source name can't
+# accidentally clobber a better-sourced canonical row.
 SOURCE_PRIORITY: dict[str, int] = {
     "greenhouse": 10,
     "lever": 10,
@@ -35,9 +40,9 @@ SOURCE_PRIORITY: dict[str, int] = {
     "jobicy": 1,
     "weworkremotely": 1,
     "remotive": 1,
-    "ycombinator": 1,
     "adzuna": 1,
     "jooble": 1,
+    "linkedin": 1,
 }
 
 

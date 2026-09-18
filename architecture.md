@@ -532,6 +532,16 @@ before hashing.
 - `GET /stream` — SSE stream of `job.created` / `job.updated` /
   `job.deactivated` events, backed by Postgres `LISTEN/NOTIFY` from the
   repository layer.
+- `POST /jobs/submit` — ingestion for a job found manually (e.g. a human
+  browsing LinkedIn on the Job Application Service side) rather than
+  fetched by a connector: `source_url`, `company_name`, `job_title`,
+  `raw_job_description`, plus optional `source` (default `"linkedin"`),
+  `direct_apply_url`, `original_location`, `posted_at`,
+  `original_salary_text`. Runs through the same `process_job()` +
+  `upsert_job()` pipeline as every scheduled fetch, so the same
+  keep/exclude rules and dedup logic apply — a rejected submission comes
+  back with a `reason` instead of a silent drop, and re-submitting the
+  same `source_url` updates the existing row rather than duplicating it.
 - All endpoints require an API key header (`X-API-Key`) for v1 — simple
   shared-secret auth between this service and the Job Application Service.
 - Optional: a read-only Postgres role documented for the Job Application
@@ -824,6 +834,33 @@ before hashing.
   remains the one permanent exception, per its own entry above). Total
   active jobs: 4 → 142 → 206 across this session's connector work.
   143 tests passing.
+
+- New feature: `POST /jobs/submit` — an ingestion endpoint for jobs found
+  manually rather than fetched by a connector. Motivation: the separate
+  Job Application Service the user is also building has a human browsing
+  LinkedIn (no scraping — a person finds the link and chooses to submit
+  it), and needs a way to hand a job link + company name + raw JD over to
+  this service. Requirement was explicit that the exclusion rules must be
+  identical to the fetch pipeline's, so the route is a thin adapter that
+  builds a `JobDraft` from the submission (hashing the URL into a stable
+  `source_job_id` so re-submitting the same link is idempotent rather than
+  duplicating; salary parsed from `original_salary_text` if given, else
+  from the JD text via the same `parse_salary()` every connector uses) and
+  hands it to the exact same `pipeline.process_job()` +
+  `repository.upsert_job()` used by every scheduled fetch — not a parallel
+  reimplementation that could drift out of sync. Rejected jobs get a
+  `reason` (e.g. `not_confirmed_remote`) instead of being silently
+  dropped, since a human submitted this one and may want to know why.
+  Added `"linkedin"` to `dedupe.SOURCE_PRIORITY` at the lowest tier (same
+  as the other aggregators) — an ATS-sourced posting for the same job
+  stays canonical over a manually-submitted one, and re-submitting the
+  same URL updates the existing row in place rather than creating a
+  duplicate. `X-API-Key` auth required, same as every other route.
+  6 new tests in `tests/api/test_ingest.py` cover: auth required, request
+  validation, a full create through the real pipeline (including verifying
+  parsed salary), rejection with a reason, idempotent re-submission
+  (update, not duplicate), and staying subordinate to an existing
+  higher-priority ATS-sourced duplicate. 149 tests passing.
 
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

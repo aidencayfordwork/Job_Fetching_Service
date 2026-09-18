@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class JobCard(BaseModel):
@@ -61,3 +62,32 @@ class JobListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class JobSubmission(BaseModel):
+    """A job found manually (e.g. on LinkedIn by a human, not a scraper)
+    and submitted by the Job Application Service for ingestion through
+    the same pipeline - and the same exclusion rules - as fetched jobs."""
+
+    source_url: HttpUrl
+    company_name: str = Field(min_length=1)
+    job_title: str = Field(min_length=1)
+    raw_job_description: str = Field(min_length=1)
+
+    # Which site this was found on - lets the same endpoint serve other
+    # manually-sourced sites later without a schema change. Recorded
+    # as-is in jobs.source; an unrecognized value just defaults to the
+    # lowest dedup priority (see dedupe.SOURCE_PRIORITY) rather than
+    # being rejected outright.
+    source: str = "linkedin"
+
+    direct_apply_url: HttpUrl | None = None
+    original_location: str | None = None
+    posted_at: datetime | None = None
+    original_salary_text: str | None = None
+
+
+class JobSubmissionResult(BaseModel):
+    status: Literal["created", "updated", "duplicate", "rejected"]
+    reason: str | None = None
+    job_id: int | None = None

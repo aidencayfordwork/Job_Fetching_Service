@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.api.routes_ingest import router as ingest_router
 from app.api.routes_jobs import router as jobs_router
 from app.api.routes_sources import router as sources_router
 from app.api.routes_stats import router as stats_router
@@ -50,6 +51,7 @@ app.include_router(jobs_router)
 app.include_router(sources_router)
 app.include_router(stats_router)
 app.include_router(stream_router)
+app.include_router(ingest_router)
 
 
 @app.get("/health")

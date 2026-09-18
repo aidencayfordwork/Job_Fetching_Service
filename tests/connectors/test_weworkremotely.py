@@ -35,3 +35,4 @@ async def test_fetch_and_normalize():
     assert draft.original_location == "Anywhere in the World"
     assert draft.salary_min == 130000
     assert draft.salary_max == 160000
+    assert draft.is_remote is True

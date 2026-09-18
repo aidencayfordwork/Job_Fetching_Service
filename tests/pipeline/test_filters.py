@@ -1,0 +1,115 @@
+from app.connectors.base import JobDraft
+from app.pipeline.filters import apply_filters, assess_remote_us
+
+
+def _job(**overrides) -> JobDraft:
+    defaults = dict(
+        source="test", source_job_id="1", company_name="Acme",
+        job_title="Senior Backend Engineer", source_url="https://x",
+        cleaned_job_description="Build things.",
+        level="SENIOR", role_category="Backend",
+    )
+    defaults.update(overrides)
+    return JobDraft(**defaults)
+
+
+def test_explicit_remote_us_location():
+    job = _job(original_location="Remote - US")
+    a = assess_remote_us(job)
+    assert a.is_remote is True
+    assert a.us_eligible is True
+    assert a.remote_scope == "US"
+
+
+def test_hybrid_location_not_remote():
+    job = _job(original_location="New York, NY (hybrid)")
+    a = assess_remote_us(job)
+    assert a.is_remote is False
+
+
+def test_source_provided_is_remote_overridden_by_hybrid_in_jd():
+    job = _job(is_remote=True, original_location="Austin, TX", cleaned_job_description="This is a hybrid role, 3 days a week in office.")
+    a = assess_remote_us(job)
+    assert a.is_remote is False
+
+
+def test_ashby_style_remote_non_us_region():
+    # Real shape seen from Linear's Ashby board: "Europe (Remote)".
+    job = _job(is_remote=True, original_location="Europe (Remote)")
+    a = assess_remote_us(job)
+    assert a.is_remote is True
+    assert a.us_eligible is False
+
+
+def test_worldwide_is_us_eligible():
+    job = _job(original_location="Anywhere in the World")
+    a = assess_remote_us(job)
+    assert a.is_remote is True
+    assert a.us_eligible is True
+    assert a.remote_scope == "Global"
+
+
+def test_north_america_alone_is_ambiguous():
+    # Real shape seen from Remotive: "Northern America, LATAM, Europe, APAC".
+    job = _job(original_location="Northern America, LATAM, Europe, APAC")
+    a = assess_remote_us(job)
+    assert a.us_eligible is None
+
+
+def test_explicit_exclusion_carveout():
+    job = _job(original_location="Remote - Worldwide (excluding the US)")
+    a = assess_remote_us(job)
+    assert a.us_eligible is False
+
+
+def test_state_restricted_scope():
+    job = _job(original_location="Remote (CA, NY, WA only)")
+    a = assess_remote_us(job)
+    assert a.us_eligible is True
+    assert a.remote_scope == "US-partial"
+    assert "california" in a.eligible_states or "ca" in a.eligible_states
+
+
+def test_apply_filters_keeps_valid_job():
+    job = _job(original_location="Remote - US")
+    outcome = apply_filters(job)
+    assert outcome.kept is True
+    assert outcome.reason is None
+
+
+def test_apply_filters_excludes_active_clearance():
+    job = _job(
+        original_location="Remote - US",
+        cleaned_job_description="Must have an active Secret clearance.",
+    )
+    outcome = apply_filters(job)
+    assert outcome.kept is False
+    assert outcome.reason == "requires_active_clearance"
+
+
+def test_apply_filters_excludes_non_remote():
+    job = _job(original_location="New York, NY (hybrid)")
+    outcome = apply_filters(job)
+    assert outcome.kept is False
+    assert outcome.reason == "not_confirmed_remote"
+
+
+def test_apply_filters_excludes_non_us():
+    job = _job(original_location="Remote - UK only")
+    outcome = apply_filters(job)
+    assert outcome.kept is False
+    assert outcome.reason == "not_confirmed_us_eligible"
+
+
+def test_apply_filters_excludes_non_target_role():
+    job = _job(original_location="Remote - US", role_category=None)
+    outcome = apply_filters(job)
+    assert outcome.kept is False
+    assert outcome.reason == "not_a_target_role"
+
+
+def test_apply_filters_excludes_bad_seniority():
+    job = _job(original_location="Remote - US", level=None)
+    outcome = apply_filters(job)
+    assert outcome.kept is False
+    assert outcome.reason == "seniority_out_of_band"

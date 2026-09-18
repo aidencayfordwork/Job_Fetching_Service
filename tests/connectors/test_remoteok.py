@@ -35,3 +35,4 @@ async def test_fetch_skips_metadata_entry_and_normalizes():
     assert "BANANA" not in draft.cleaned_job_description
     assert draft.salary_min == 140000
     assert draft.currency == "USD"
+    assert draft.is_remote is True

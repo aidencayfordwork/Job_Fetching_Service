@@ -37,3 +37,4 @@ async def test_fetch_and_normalize():
     assert draft.industry == "Software Development"
     assert draft.salary_min == 120000
     assert draft.salary_max == 150000
+    assert draft.is_remote is True

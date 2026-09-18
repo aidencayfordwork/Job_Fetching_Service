@@ -34,7 +34,7 @@ class GreenhouseConnector(AtsMultiCompanyConnector):
             yield job
 
     def normalize(self, raw: RawJob) -> JobDraft:
-        location = (raw.get("location") or {}).get("name")
+        location = ((raw.get("location") or {}).get("name") or "").strip() or None
         cleaned = clean_html(raw.get("content"))
         salary = parse_salary(cleaned)
 

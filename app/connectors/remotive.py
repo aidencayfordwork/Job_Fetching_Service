@@ -52,6 +52,8 @@ class RemotiveConnector(SourceConnector):
             source_url=raw["url"],
             direct_apply_url=raw["url"],
             original_location=raw.get("candidate_required_location") or None,
+            # Remotive is a remote-only job board by definition of the site.
+            is_remote=True,
             employment_type=_JOB_TYPE_MAP.get(raw.get("job_type") or ""),
             industry=raw.get("category") or None,
             full_technology_stack=tags,

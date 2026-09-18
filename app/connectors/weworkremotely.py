@@ -67,6 +67,9 @@ class WeWorkRemotelyConnector(SourceConnector):
             source_url=link,
             direct_apply_url=link,
             original_location=raw.get("region") or None,
+            # We Work Remotely is a remote-only job board by definition of
+            # the site itself.
+            is_remote=True,
             industry=raw.get("category") or None,
             raw_job_description=raw.get("description"),
             cleaned_job_description=cleaned,

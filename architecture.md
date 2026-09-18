@@ -416,14 +416,10 @@ the more direct ATS coverage grows, compounding over time.
 1. **Normalize** (`pipeline/normalize.py`): raw payload → `JobDraft`
    (superset of the `jobs` columns, all optional). Field mapping/type
    coercion only, no business rules.
-2. **Filter** (`pipeline/filters.py` + `clearance.py`): reject unless
-   `is_remote` and `us_eligible` are both confirmed true; reject on-site/
-   hybrid, non-US-eligible, or undeterminable remote-US status; reject
-   non-software roles; reject by seniority (§ below); reject **active**-
-   clearance requirements only (regex/keyword rules distinguishing "must
-   currently hold" from "able to obtain" / "eligible for" / "public trust"
-   / "background check" / "citizenship required", which are allowed).
-3. **Classify**:
+2. **Classify** (runs *before* Filter — deliberate reorder from the
+   original draft: the seniority and role gates in the Filter step need
+   `level` and `role_category` already computed, so classifying first
+   avoids building the same seniority/role detection logic twice):
    - `classify_level.py`: title keyword rules first (senior/staff/lead
      markers, explicit exclusion of principal/director/intern/junior/new
      grad), falling back to JD analysis (years-of-experience regex,
@@ -435,6 +431,18 @@ the more direct ATS coverage grows, compounding over time.
    - `classify_stack.py`: dictionary-based technology extraction from
      title + JD → `full_technology_stack`, with a heuristic picking 2-4
      headline items for `main_stack`.
+3. **Filter** (`pipeline/filters.py` + `clearance.py`): reject unless
+   `is_remote` and `us_eligible` are both confirmed true; reject on-site/
+   hybrid, non-US-eligible, or undeterminable remote-US status; reject
+   non-software roles (via `role_category` from Classify); reject by
+   seniority (via `level` from Classify — outside MID/SENIOR/STAFF/LEAD);
+   reject **active**-clearance requirements only (regex/keyword rules
+   distinguishing "must currently hold" from "able to obtain" / "eligible
+   for" / "public trust" / "background check" / "citizenship required",
+   which are allowed). Ambiguous remote/US-eligibility resolves to
+   *exclude*, not include — false negatives (missing a job) are
+   preferable to false positives (polluting results with jobs the
+   candidate can't actually take).
 4. **Match keywords** (`pipeline/match_keywords.py`, implemented): matches
    job title + `cleaned_job_description` against the curated, versioned
    vocabulary in `config/keyword_taxonomy.yaml` (languages, frameworks,
@@ -455,7 +463,7 @@ the more direct ATS coverage grows, compounding over time.
    `last_seen_at` on every sighting; jobs not re-seen within a grace
    window get `active = false` rather than deleted.
 
-Pure function pipeline (`JobDraft -> FilteredJob | None -> ClassifiedJob ->
+Pure function pipeline (`JobDraft -> ClassifiedJob -> FilteredJob | None ->
 KeywordedJob -> DedupedJob`) — each stage independently unit-testable
 without a database.
 
@@ -591,6 +599,19 @@ before hashing.
   29 unit tests passing (respx-mocked, no live-network dependency for
   future runs). Remaining sources (SmartRecruiters, Jobicy, Himalayas, YC,
   Adzuna, Jooble) deferred to a later pass.
+- Phase 6+7 (Filter + Classify, built together — see §6 reorder note) —
+  done: `classify_level.py`, `classify_role.py`, `classify_stack.py`
+  (reuses the keyword taxonomy instead of a second tech dictionary),
+  `clearance.py`, `filters.py` (remote/US assessment with an
+  ambiguous-resolves-to-exclude policy). 76 unit tests passing, plus a
+  live end-to-end run against real Airbnb/Ro/Linear/Ramp postings that
+  surfaced and fixed 4 real bugs before being trusted: a bare `\bus\b`
+  regex colliding with the English pronoun "us" ("join us"), state names
+  matched against incidental JD boilerplate ("offices in ... New York
+  ...") rather than the actual location field, 2-letter state
+  abbreviations colliding with common words ("in" = Indiana), and
+  "Northern America" not matching a "North America" pattern that assumed
+  no suffix.
 
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

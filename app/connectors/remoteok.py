@@ -48,6 +48,10 @@ class RemoteOkConnector(SourceConnector):
             source_url=raw.get("url") or raw.get("apply_url"),
             direct_apply_url=raw.get("apply_url") or raw.get("url"),
             original_location=raw.get("location") or None,
+            # RemoteOK's entire catalog is remote-only by definition of the
+            # site itself - this is a certain fact about the source, not a
+            # guess, so it's safe to set directly here.
+            is_remote=True,
             full_technology_stack=tags,
             raw_job_description=raw.get("description"),
             cleaned_job_description=cleaned,

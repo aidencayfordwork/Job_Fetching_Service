@@ -862,5 +862,18 @@ before hashing.
   (update, not duplicate), and staying subordinate to an existing
   higher-priority ATS-sourced duplicate. 149 tests passing.
 
+- The scheduler is now running continuously against the real dev
+  environment (was previously only started for one-off manual/live-test
+  runs, sometimes with `SCHEDULER_ENABLED=false` to keep those tests
+  deterministic). Restarted the backend with the scheduler on: all 11
+  enabled sources fired immediately on startup (each `source_runs` row
+  `status=success`, `consecutive_failures=0`) and are now on their own
+  recurring interval (mostly every 3h, `jobicy` hourly, one at 6h — see
+  `sources.fetch_interval_seconds`), plus the independent discovery job
+  on its own longer interval. This is what makes the service actually
+  "continuous" end to end rather than needing a manual trigger per
+  source. Confirmed via `/stats`: 211 active jobs, 262 added in the last
+  24h.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

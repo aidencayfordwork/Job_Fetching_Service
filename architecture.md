@@ -613,5 +613,12 @@ before hashing.
   "Northern America" not matching a "North America" pattern that assumed
   no suffix.
 
+- Phase 8 (Deduplication) — done: `dedupe.py` (fingerprint + rapidfuzz
+  fuzzy title fallback, scoped to same-company candidates; source-priority
+  ranking for canonical-source selection) plus `pipeline.py`, the
+  orchestrator tying Classify → Filter → MatchKeywords → Dedupe into one
+  `process_job()` call for the persistence layer to use. 89 unit tests
+  passing.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

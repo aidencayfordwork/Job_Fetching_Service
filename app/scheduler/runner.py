@@ -2,8 +2,7 @@
 
 Isolation is the whole point of this module: a bad company board, a
 malformed job, or a mid-run network blip must never take down the whole
-run or affect any other source. Each job is committed individually so a
-late failure doesn't roll back everything already persisted this run.
+run or affect any other source.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.connectors.ats_common import AtsMultiCompanyConnector
-from app.connectors.base import SourceConnector
+from app.connectors.base import JobDraft, SourceConnector
 from app.core.logging import get_logger
 from app.db.base import async_session_factory
 from app.persistence import repository
@@ -23,17 +22,21 @@ log = get_logger(__name__)
 
 
 async def run_source(connector: SourceConnector, session: AsyncSession | None = None) -> None:
-    """`session`: pass one in to reuse an existing session (mainly for
-    tests); otherwise a fresh one is opened and closed here."""
+    """`session`: pass one in to reuse it for everything (mainly for
+    tests, so they stay inside their rollback-based isolation). In
+    production, per-job work gets its own fresh session instead of
+    sharing one across the whole run - see `_process_one` for why."""
     if session is not None:
-        await _run_source(connector, session)
+        await _run_source(connector, session, per_job_session=session)
         return
 
     async with async_session_factory() as owned_session:
-        await _run_source(connector, owned_session)
+        await _run_source(connector, owned_session, per_job_session=None)
 
 
-async def _run_source(connector: SourceConnector, session: AsyncSession) -> None:
+async def _run_source(
+    connector: SourceConnector, session: AsyncSession, per_job_session: AsyncSession | None
+) -> None:
     source_row = await repository.get_source_by_name(session, connector.name)
     if source_row is None:
         log.warning("unknown_source", source=connector.name)
@@ -57,7 +60,7 @@ async def _run_source(connector: SourceConnector, session: AsyncSession) -> None
     try:
         async for raw in connector.fetch(since):
             jobs_fetched += 1
-            outcome = await _process_one(session, connector, raw, dedupe_candidates)
+            outcome = await _process_one(connector, raw, dedupe_candidates, per_job_session)
             if outcome == "new":
                 jobs_new += 1
             elif outcome == "updated":
@@ -92,10 +95,23 @@ async def _run_source(connector: SourceConnector, session: AsyncSession) -> None
 
 
 async def _process_one(
-    session: AsyncSession, connector: SourceConnector, raw: dict, dedupe_candidates: list[ExistingJobRef]
+    connector: SourceConnector,
+    raw: dict,
+    dedupe_candidates: list[ExistingJobRef],
+    per_job_session: AsyncSession | None,
 ) -> str:
     """Returns 'new' / 'updated' / 'filtered'. Never raises - a single bad
-    job must not abort the rest of the run."""
+    job must not abort the rest of the run.
+
+    Uses its own fresh, short-lived session per job in production
+    (`per_job_session` is None) rather than sharing one long-lived session
+    across an entire run. A run can mean hundreds of sequential commits
+    (e.g. Himalayas, which can yield ~1000 jobs in one fetch) - sharing
+    one session that long triggered a real "MissingGreenlet" crash from
+    accumulated SQLAlchemy session state, seen live. `per_job_session`,
+    when given (tests), is reused instead so the caller's transaction-
+    rollback isolation still covers everything.
+    """
     try:
         draft = connector.normalize(raw)
         result = process_job(draft, dedupe_candidates)
@@ -103,20 +119,36 @@ async def _process_one(
         if not result.kept:
             return "filtered"
 
-        row, is_new = await repository.upsert_job(session, result.job, dedupe_candidates)
-        await session.commit()
-
-        if is_new:
-            dedupe_candidates.append(
-                ExistingJobRef(
-                    id=row.id, source=row.source, source_job_id=row.source_job_id,
-                    company_name=row.company_name, job_title=row.job_title,
-                    canonical_fingerprint=row.canonical_fingerprint,
-                )
-            )
-            return "new"
-        return "updated"
+        if per_job_session is not None:
+            row, is_new = await _upsert(per_job_session, result.job, dedupe_candidates)
+        else:
+            async with async_session_factory() as session:
+                row, is_new = await _upsert(session, result.job, dedupe_candidates)
     except Exception:
-        await session.rollback()
         log.warning("job_processing_failed", source=connector.name, raw_keys=list(raw.keys()), exc_info=True)
+        if per_job_session is not None:
+            try:
+                await per_job_session.rollback()
+            except Exception:
+                # The rollback itself failing (e.g. connection already
+                # broken) must not escape either - that would defeat the
+                # whole point of this being a per-job isolation boundary.
+                log.error("job_processing_rollback_failed", source=connector.name, exc_info=True)
         return "filtered"
+
+    if is_new:
+        dedupe_candidates.append(
+            ExistingJobRef(
+                id=row.id, source=row.source, source_job_id=row.source_job_id,
+                company_name=row.company_name, job_title=row.job_title,
+                canonical_fingerprint=row.canonical_fingerprint,
+            )
+        )
+        return "new"
+    return "updated"
+
+
+async def _upsert(session: AsyncSession, job: JobDraft, dedupe_candidates: list[ExistingJobRef]):
+    row, is_new = await repository.upsert_job(session, job, dedupe_candidates)
+    await session.commit()
+    return row, is_new

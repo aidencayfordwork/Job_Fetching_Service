@@ -1,0 +1,216 @@
+# Curated keyword taxonomy for senior software engineering roles.
+#
+# This is a CONTROLLED vocabulary, not a source for free-form NLP keyword
+# extraction. app/pipeline/match_keywords.py matches job title + cleaned JD
+# text against this list and stores which canonical terms were found in
+# jobs.matched_keywords. The downstream Job Application Service uses that
+# fixed vocabulary to compute a profile-match score (set overlap between a
+# candidate's own keyword list and a job's matched_keywords) — so every term
+# here should be something a candidate could plausibly list as a skill/
+# interest on their own profile.
+#
+# Format: canonical_name: [alias1, alias2, ...]
+# Aliases are matched case-insensitively as whole words/phrases, except
+# terms flagged under `case_sensitive_terms` below (short tokens like "Go",
+# "R", "C" are ambiguous against normal English and are matched case-
+# sensitively, exact token only, to cut false positives.
+
+languages:
+  Python: [python, python3]
+  JavaScript: [javascript]
+  TypeScript: [typescript]
+  Java: [java]
+  "C#": ["c#", "csharp", ".net", "dotnet", "asp.net"]
+  "C++": ["c++", "cpp"]
+  C: ["c programming language"]
+  Go: [golang]
+  Rust: [rust]
+  Ruby: [ruby]
+  PHP: [php]
+  Swift: [swift]
+  Kotlin: [kotlin]
+  Scala: [scala]
+  R: ["r language", "r programming"]
+  SQL: [sql]
+  Bash: [bash, shell scripting]
+  Elixir: [elixir]
+  Haskell: [haskell]
+  Perl: [perl]
+  Objective-C: ["objective-c", "objective c"]
+  MATLAB: [matlab]
+
+frontend:
+  React: [react, react.js, reactjs]
+  Angular: [angular, angular.js, angularjs]
+  Vue.js: [vue, vue.js, vuejs]
+  Svelte: [svelte]
+  Next.js: [next.js, nextjs]
+  Redux: [redux]
+  HTML: [html, html5]
+  CSS: [css, css3]
+  Sass: [sass, scss]
+  Tailwind CSS: [tailwind, tailwindcss]
+  Webpack: [webpack]
+  Vite: [vite]
+  jQuery: [jquery]
+  WebAssembly: [webassembly, wasm]
+
+backend_frameworks:
+  FastAPI: [fastapi]
+  Django: [django]
+  Flask: [flask]
+  Express.js: [express, express.js, expressjs]
+  NestJS: [nestjs, nest.js]
+  Spring Boot: [spring boot, spring]
+  Ruby on Rails: [ruby on rails, rails]
+  Laravel: [laravel]
+  gRPC: [grpc]
+  GraphQL: [graphql]
+  REST API: [rest api, restful]
+
+mobile:
+  Android: [android]
+  iOS: [ios]
+  React Native: [react native]
+  Flutter: [flutter]
+  SwiftUI: [swiftui]
+  Jetpack Compose: [jetpack compose]
+  Xamarin: [xamarin]
+
+ai_ml:
+  Machine Learning: [machine learning, "ml "]
+  Deep Learning: [deep learning]
+  Generative AI: [generative ai, genai, "gen ai"]
+  Large Language Models: [llm, large language model, large language models]
+  Natural Language Processing: [nlp, natural language processing]
+  Computer Vision: [computer vision]
+  Reinforcement Learning: [reinforcement learning]
+  Neural Networks: [neural network, neural networks]
+  PyTorch: [pytorch]
+  TensorFlow: [tensorflow]
+  Keras: [keras]
+  scikit-learn: [scikit-learn, sklearn]
+  Hugging Face: [hugging face, huggingface]
+  LangChain: [langchain]
+  Prompt Engineering: [prompt engineering]
+  RAG: [retrieval augmented generation, "rag "]
+  Vector Database: [vector database, vector db, embeddings]
+  MLOps: [mlops]
+  Pandas: [pandas]
+  NumPy: [numpy]
+  Data Science: [data science]
+
+data_engineering:
+  ETL: [etl, elt]
+  Apache Airflow: [airflow]
+  Apache Spark: [spark, pyspark]
+  Apache Kafka: [kafka]
+  dbt: [dbt]
+  Snowflake: [snowflake]
+  Redshift: [redshift]
+  BigQuery: [bigquery]
+  Databricks: [databricks]
+  Hadoop: [hadoop]
+  Apache Flink: [flink]
+  Data Warehouse: [data warehouse, data warehousing]
+  Data Pipeline: [data pipeline, data pipelines]
+
+databases:
+  PostgreSQL: [postgresql, postgres]
+  MySQL: [mysql]
+  MongoDB: [mongodb, mongo]
+  Redis: [redis]
+  Cassandra: [cassandra]
+  DynamoDB: [dynamodb]
+  Elasticsearch: [elasticsearch]
+  SQLite: [sqlite]
+  Oracle: [oracle db, oracle database]
+  Microsoft SQL Server: [mssql, sql server]
+  Neo4j: [neo4j]
+  CockroachDB: [cockroachdb]
+
+cloud_infra:
+  AWS: [aws, amazon web services]
+  Azure: [azure]
+  GCP: [gcp, google cloud]
+  Kubernetes: [kubernetes, k8s]
+  Docker: [docker]
+  Terraform: [terraform]
+  Ansible: [ansible]
+  Helm: [helm]
+  CloudFormation: [cloudformation]
+  Serverless: [serverless]
+  AWS Lambda: [lambda, aws lambda]
+
+devops_sre:
+  CI/CD: ["ci/cd", "ci cd", "continuous integration", "continuous deployment", "continuous delivery"]
+  Jenkins: [jenkins]
+  GitHub Actions: [github actions]
+  GitLab CI: [gitlab ci]
+  CircleCI: [circleci]
+  Prometheus: [prometheus]
+  Grafana: [grafana]
+  Datadog: [datadog]
+  Site Reliability Engineering: [site reliability, "sre "]
+  Observability: [observability]
+  Incident Response: [incident response, on-call, on call]
+
+distributed_systems_platform:
+  Microservices: [microservices, microservice architecture]
+  Distributed Systems: [distributed systems]
+  Message Queue: [message queue, rabbitmq, sqs, pub/sub]
+  Event-Driven Architecture: [event-driven, event driven architecture]
+  System Design: [system design]
+  Load Balancing: [load balancing, load balancer]
+  Caching: [caching, cache invalidation]
+  Service Mesh: [service mesh, istio]
+
+security:
+  Application Security: [application security, appsec]
+  Penetration Testing: [penetration testing, pentest, pentesting]
+  OWASP: [owasp]
+  Threat Modeling: [threat modeling]
+  Identity and Access Management: [iam, identity and access management]
+  Zero Trust: [zero trust]
+  Encryption: [encryption]
+  Vulnerability Management: [vulnerability management]
+  SOC 2: [soc 2, soc2]
+
+testing:
+  Unit Testing: [unit testing, unit tests]
+  Integration Testing: [integration testing]
+  Test-Driven Development: [tdd, test-driven development]
+  pytest: [pytest]
+  Jest: [jest]
+  Selenium: [selenium]
+  Cypress: [cypress]
+  JUnit: [junit]
+
+methodologies:
+  Agile: [agile]
+  Scrum: [scrum]
+  Kanban: [kanban]
+  Pair Programming: [pair programming]
+  Code Review: [code review]
+  Design Patterns: [design patterns]
+
+domains:
+  Backend: [backend, back-end, "back end"]
+  Frontend: [frontend, front-end, "front end"]
+  Full Stack: [full stack, "full-stack", fullstack]
+  Platform Engineering: [platform engineering]
+  Infrastructure Engineering: [infrastructure engineering]
+  Cloud Engineering: [cloud engineering]
+  Data Engineering: [data engineering]
+  Machine Learning Engineering: [machine learning engineer, ml engineer, ml engineering]
+  AI Engineering: [ai engineer, ai engineering]
+  Security Engineering: [security engineering, security engineer]
+  DevOps: [devops]
+  Mobile Engineering: [mobile engineer, mobile engineering]
+  Embedded Systems: [embedded systems, embedded software]
+  QA Engineering: [qa engineer, quality assurance engineering]
+
+# Short/ambiguous canonical terms matched case-sensitively (exact token
+# only) instead of the default case-insensitive whole-word match, to avoid
+# false positives against ordinary English words.
+case_sensitive_terms: [Go, R, C]

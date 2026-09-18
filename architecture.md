@@ -6,7 +6,7 @@ Status: approved for implementation.
 
 A backend-first service that continuously discovers newly posted, **fully US-remote,
 mid/senior/staff/lead software engineering jobs**, normalizes and classifies them,
-extracts keywords, deduplicates across sources, persists them in PostgreSQL, and
+tags them against a curated keyword taxonomy, deduplicates across sources, persists them in PostgreSQL, and
 exposes them over a REST + streaming API for a separate Job Application Service.
 A minimal React/Vite dev UI is built last, purely to eyeball data quality and
 source health.
@@ -59,7 +59,7 @@ multi-tenant auth, horizontal fetch-worker scaling.
         │  1. Normalize   → canonical JobDraft                     │
         │  2. Filter      → remote/US/role/seniority/clearance     │
         │  3. Classify    → level, role_category, tech stack       │
-        │  4. Extract kw  → extracted_keywords (JD-wide)           │
+        │  4. Match keywords → matched_keywords (curated taxonomy) │
         │  5. Deduplicate → fingerprint + fuzzy cross-source match  │
         └───────────────────────┬───────────────────────────────┘
                                  │ upsert
@@ -137,7 +137,7 @@ job-fetching-service/
 │   │   ├── classify_level.py         # MID/SENIOR/STAFF/LEAD
 │   │   ├── classify_role.py          # role_category
 │   │   ├── classify_stack.py         # tech stack extraction
-│   │   ├── extract_keywords.py       # extracted_keywords (JD-wide)
+│   │   ├── match_keywords.py         # matched_keywords (curated taxonomy match)
 │   │   ├── dedupe.py                 # fingerprinting + cross-source matching
 │   │   └── pipeline.py               # orchestrates the above per JobDraft
 │   ├── scheduler/
@@ -151,7 +151,8 @@ job-fetching-service/
 │       ├── logging.py                # structured logging (structlog)
 │       └── http_client.py            # shared httpx client, retry/backoff, rate limiter
 ├── config/
-│   └── ats_seed_companies.yaml       # curated, user-extensible company list
+│   ├── ats_seed_companies.yaml       # curated, user-extensible company list
+│   └── keyword_taxonomy.yaml         # curated skill/domain vocabulary for matched_keywords
 ├── tests/
 │   ├── connectors/
 │   ├── pipeline/
@@ -270,7 +271,7 @@ JD
 | responsibilities | text[] null |
 | required_skills | text[] null |
 | preferred_skills | text[] null |
-| **extracted_keywords** | **text[]** | **all keywords/key phrases pulled from the JD — technical and non-technical (methodologies, domain terms, tools, soft requirements). Superset of `full_technology_stack`; used for search/matching, not curated like `required_skills`.** |
+| **matched_keywords** | **text[]** | **canonical terms matched against `config/keyword_taxonomy.yaml` (languages, frameworks, domains — e.g. Python, React, Backend, Generative AI). A controlled vocabulary, not free-form NLP extraction — exists so the Job Application Service can compute a profile-match score via simple set overlap against a candidate's own keyword list.** |
 
 Internal
 | active | boolean default true |
@@ -284,7 +285,7 @@ Indexes:
 - `unique (canonical_fingerprint)` — cross-source dedup key
 - btree `(active, posted_at desc)` — default listing/sort
 - btree `(level)`, `(role_category)`, `(company_name)` — filter columns
-- GIN `(main_stack)`, GIN `(full_technology_stack)`, GIN `(extracted_keywords)` — tech/keyword filters
+- GIN `(main_stack)`, GIN `(full_technology_stack)`, GIN `(matched_keywords)` — tech/keyword filters
 - btree `(salary_min, salary_max)` — salary range filter
 - btree `(last_seen_at desc)` — "recently updated" / new-job detection
 - full-text `to_tsvector('english', job_title || ' ' || company_name)` — search
@@ -430,13 +431,19 @@ the more direct ATS coverage grows, compounding over time.
    - `classify_stack.py`: dictionary-based technology extraction from
      title + JD → `full_technology_stack`, with a heuristic picking 2-4
      headline items for `main_stack`.
-4. **Extract keywords** (`pipeline/extract_keywords.py`): runs on
-   `cleaned_job_description`, combining the tech-stack dictionary hits
-   with a lightweight unsupervised keyword/key-phrase extractor (YAKE —
-   pure Python, deterministic, no external API calls or ML hosting) to
-   also capture non-technical terms (methodologies, domain vocabulary,
-   soft requirements). Deduped, lowercased, stored in
-   `jobs.extracted_keywords`.
+4. **Match keywords** (`pipeline/match_keywords.py`, implemented): matches
+   job title + `cleaned_job_description` against the curated, versioned
+   vocabulary in `config/keyword_taxonomy.yaml` (languages, frameworks,
+   cloud/infra, AI/ML, data engineering, security, domains/role families,
+   methodologies — ~230 canonical terms across 13 categories, each with
+   aliases/synonyms, e.g. `k8s`→Kubernetes, `js`→JavaScript). This is
+   **not** general NLP keyword extraction — every stored term comes from
+   the fixed list, so `jobs.matched_keywords` is directly comparable
+   (simple set overlap) against a candidate's own skill list in the Job
+   Application Service to compute a match score. Short/ambiguous tokens
+   (`Go`, `R`, `C`) are matched case-sensitively to avoid false positives
+   against ordinary English words. Covered by unit tests
+   (`tests/pipeline/test_match_keywords.py`).
 5. **Deduplicate** (`pipeline/dedupe.py`): see §7.
 6. **Persist** (`persistence/repository.py`): idempotent upsert keyed by
    `(source, source_job_id)` for per-source identity, and by
@@ -490,7 +497,7 @@ before hashing.
 ## 9. REST API (FastAPI)
 
 - `GET /jobs` — paginated, filters: `level`, `role_category`, `technology`,
-  `keyword` (matches `extracted_keywords`), `company`,
+  `keyword` (matches `matched_keywords`), `company`,
   `salary_min`/`salary_max`, `source`, `q` (search); `sort=newest` default;
   cursor or offset pagination.
 - `GET /jobs/{id}` — full record incl. cleaned/raw JD and extracted
@@ -519,8 +526,8 @@ before hashing.
 - APScheduler for scheduling, httpx for fetching, tenacity for retry,
   structlog for structured logs.
 - rapidfuzz for fuzzy dedup matching.
-- yake for lightweight keyword/key-phrase extraction (no ML hosting, no
-  per-job API cost).
+- pyyaml to load the curated `config/keyword_taxonomy.yaml` vocabulary used
+  by `match_keywords.py` (no ML hosting, no per-job API cost).
 - pytest + pytest-asyncio + respx (HTTP mocking) for tests.
 - Frontend (phase 13): React + TypeScript + Vite, plain fetch/EventSource.
 - Local dev/deploy: Docker Compose (Postgres + app).
@@ -535,7 +542,7 @@ before hashing.
    WWR) + ATS company discovery (seed loader + probe step)
 5. Normalization layer
 6. Filtering (remote/US/role/seniority/clearance gate)
-7. Classification: level, role category, stack + keyword extraction
+7. Classification: level, role category, stack + taxonomy keyword matching
 8. Deduplication
 9. Scheduler + fetch workers + discovery job + source health tracking
 10. REST API (`/jobs`, `/sources`, `/ats-companies`, `/stats`) + API-key auth
@@ -553,7 +560,21 @@ before hashing.
 - Hosting: local Docker Compose for now; containerized so a cloud move
   later is a deploy-target change, not a rewrite.
 - API auth: shared API key header for v1.
-- Keyword extraction: deterministic/free (dictionary + YAKE), not
-  LLM-based — revisit only if extraction quality proves insufficient.
+- Keyword field: **not** free-form NLP extraction. `matched_keywords` is a
+  controlled-vocabulary match against `config/keyword_taxonomy.yaml`
+  (languages, frameworks, domains), purpose-built so the Job Application
+  Service can score jobs against a candidate's own keyword list via set
+  overlap.
 
-Ready to start phase 2 (FastAPI/PostgreSQL foundation) on confirmation.
+## 13. Progress
+
+- Phase 1 (architecture) — done.
+- Phase 2 (FastAPI/PostgreSQL foundation) — done: async SQLAlchemy models
+  for all 6 tables, Alembic migrations, Docker Compose Postgres, `/health`
+  endpoint, verified end-to-end.
+- Keyword taxonomy (`config/keyword_taxonomy.yaml`) + `match_keywords.py`
+  — done, unit-tested.
+- Phase 3 (source-connector interface + registry) — in progress.
+
+Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
+push after each phase).

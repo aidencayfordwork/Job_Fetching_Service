@@ -81,7 +81,7 @@ class Job(Base):
         Index("ix_jobs_company_name", "company_name"),
         Index("ix_jobs_main_stack", "main_stack", postgresql_using="gin"),
         Index("ix_jobs_full_technology_stack", "full_technology_stack", postgresql_using="gin"),
-        Index("ix_jobs_extracted_keywords", "extracted_keywords", postgresql_using="gin"),
+        Index("ix_jobs_matched_keywords", "matched_keywords", postgresql_using="gin"),
         Index("ix_jobs_salary_range", "salary_min", "salary_max"),
         Index("ix_jobs_last_seen_at", "last_seen_at"),
         Index("ix_jobs_search_vector", "search_vector", postgresql_using="gin"),
@@ -135,7 +135,7 @@ class Job(Base):
     responsibilities: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     required_skills: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     preferred_skills: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
-    extracted_keywords: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    matched_keywords: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
 
     # Internal
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

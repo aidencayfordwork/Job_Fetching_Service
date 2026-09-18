@@ -1,0 +1,87 @@
+.job-card {
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.job-card-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.job-card-subtitle {
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.job-card-badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.badge-level {
+  background: #2b4a2b;
+  color: #a4e8a4;
+}
+
+.badge-role {
+  background: #2b3a4a;
+  color: #a4c8e8;
+}
+
+.badge-source {
+  background: #3a2b4a;
+  color: #d1a4e8;
+}
+
+.job-card-stack {
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+.job-card-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.2rem 1rem;
+  font-size: 0.82rem;
+  color: #bbb;
+}
+
+.job-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.job-card-actions button,
+.job-card-actions .apply-button {
+  flex: 1;
+  padding: 0.45rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #242424;
+  color: #eee;
+  text-align: center;
+  text-decoration: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.apply-button {
+  background: #2b5c2b;
+  border-color: #3a7a3a;
+}

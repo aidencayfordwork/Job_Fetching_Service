@@ -1,0 +1,156 @@
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  text-align: left;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.app-header h1 {
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.app-header nav a {
+  color: #999;
+  text-decoration: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+}
+
+.app-header nav a.active {
+  color: #fff;
+  background: #242424;
+}
+
+.job-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.results-count {
+  color: #999;
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.pagination button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #242424;
+  color: #eee;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.error-banner {
+  background: #4a2b2b;
+  color: #e8a4a4;
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-tile {
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #1a1a1a;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.stat-label {
+  color: #999;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.source-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.source-table th,
+.source-table td {
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid #333;
+  text-align: left;
+}
+
+.source-table th {
+  color: #999;
+  font-weight: 600;
+}
+
+.errors-cell {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e8a4a4;
+}
+
+.status-pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-healthy {
+  background: #2b4a2b;
+  color: #a4e8a4;
+}
+
+.status-degraded {
+  background: #4a4a2b;
+  color: #e8e0a4;
+}
+
+.status-down {
+  background: #4a2b2b;
+  color: #e8a4a4;
+}
+
+.status-neutral {
+  background: #333;
+  color: #bbb;
+}

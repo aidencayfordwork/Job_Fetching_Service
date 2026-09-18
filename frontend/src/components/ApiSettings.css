@@ -1,0 +1,50 @@
+.api-settings {
+  margin-bottom: 1rem;
+}
+
+.api-settings-toggle {
+  background: none;
+  border: 1px solid #444;
+  color: #ccc;
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.api-settings-panel {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #1a1a1a;
+}
+
+.api-settings-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.api-settings-panel input {
+  padding: 0.4rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #111;
+  color: #eee;
+  min-width: 220px;
+}
+
+.api-settings-panel button {
+  padding: 0.45rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #242424;
+  color: #eee;
+  cursor: pointer;
+}

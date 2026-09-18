@@ -1,0 +1,28 @@
+:root {
+  color-scheme: dark;
+  font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #0f0f0f;
+  color: #e8e8e8;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1,
+h2,
+h3 {
+  color: #fff;
+}
+
+a {
+  color: #a4c8e8;
+}
+
+button {
+  font-family: inherit;
+}

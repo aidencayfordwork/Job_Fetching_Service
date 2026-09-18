@@ -665,5 +665,23 @@ before hashing.
   the `job.created` event with the correct payload in real time.
   119 unit tests passing.
 
+- Phase 13 (React/Vite monitoring frontend) — done: Jobs page (job cards,
+  search, level/role/technology/company/source/salary filters, newest-
+  first pagination, View JD modal, Apply button) and Source Status page
+  (per-source health table + stats tiles), per architecture.md §2E/§5.
+  API base URL + key configurable in-app (stored in localStorage, no
+  build-time config needed). Real bug caught only by testing in an actual
+  browser, not curl or unit tests: FastAPI had no `CORSMiddleware`, so
+  the browser silently blocked every cross-origin request from the
+  frontend's origin to the API's - added it (all origins, since every
+  route already requires `X-API-Key`). Verified with a full live run,
+  backend + frontend both actually running, driven by Playwright with
+  screenshots: real job cards render correctly, level/technology filters
+  narrow results, pagination advances pages, the JD modal loads the full
+  description, and the Source Status page shows live per-source health
+  and stats. (One cosmetic artifact spotted in a screenshot - a mangled
+  "™" in a job title - traced back to RemoteOK's own raw API response
+  before concluding it wasn't a bug in this pipeline.)
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

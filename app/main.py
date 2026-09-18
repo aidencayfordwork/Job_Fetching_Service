@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.routes_jobs import router as jobs_router
@@ -34,6 +35,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Job Fetching Service", lifespan=lifespan)
+
+# The dev frontend runs on a different origin/port than the API, and the
+# real Job Application Service will too - every route already requires
+# X-API-Key, so allowing all origins here doesn't weaken auth.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(jobs_router)
 app.include_router(sources_router)

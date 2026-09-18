@@ -1,0 +1,30 @@
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filters-bar input,
+.filters-bar select {
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #1a1a1a;
+  color: #eee;
+  font-size: 0.85rem;
+}
+
+.filters-bar input[type="number"] {
+  width: 100px;
+}
+
+.filters-bar button {
+  padding: 0.45rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #242424;
+  color: #eee;
+  cursor: pointer;
+  font-size: 0.85rem;
+}

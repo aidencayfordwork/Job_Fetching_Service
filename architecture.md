@@ -725,5 +725,22 @@ before hashing.
   itself (any naive `posted_at` from any connector is treated as UTC
   rather than crashing that job's processing). 127 tests passing.
 
+- Bug fix: `classify_role.py`'s JD-body fallback was too loose - a
+  recruiter's JD naturally mentions "hire great Software Engineers" and
+  a product manager's JD naturally mentions "our Generative AI roadmap,"
+  both of which matched the generic engineering patterns and got kept as
+  engineering roles. This was visible in earlier live-testing output
+  ("Senior Technical Recruiter" classified as Backend) but not fixed at
+  the time. Added a non-engineering title gate (recruiter, sales/account/
+  business development, marketing, HR/people/talent, legal, finance,
+  program/project/product manager, design, editor/content, localization,
+  etc.) checked *before* any positive role matching, and removed the
+  riskiest fallback (the generic `software engineer` pattern) from JD-body
+  matching entirely - it's title-only now, the more specific patterns
+  (AI/ML/DevOps/etc.) still fall back to JD text since they're narrow
+  enough phrases to be safe. Applied retroactively to the real dev
+  database (2 more misclassified rows deactivated, on top of the 49 the
+  age-cutoff pass already caught). 133 tests passing.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

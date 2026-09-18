@@ -49,3 +49,56 @@ def test_falls_back_to_jd_when_title_has_no_signal():
 def test_non_software_role_returns_none():
     job = classify_role(_job("Marketing Manager", "Own our brand campaigns."))
     assert job.role_category is None
+
+
+def test_recruiter_excluded_even_when_jd_mentions_software_engineers():
+    # Real false positive caught in live testing: a recruiter's JD
+    # naturally mentions "Software Engineers" (who they're hiring for),
+    # which used to match the generic engineering fallback pattern.
+    job = classify_role(
+        _job(
+            "Senior Technical Recruiter (Contract)",
+            "You'll partner with hiring managers to recruit top Software "
+            "Engineers and help us scale our engineering org.",
+        )
+    )
+    assert job.role_category is None
+
+
+def test_account_manager_excluded():
+    job = classify_role(
+        _job("Senior Account Manager", "You'll work closely with our engineering team on customer accounts.")
+    )
+    assert job.role_category is None
+
+
+def test_sales_and_business_development_excluded():
+    assert classify_role(_job("Sales Development Representative")).role_category is None
+    assert classify_role(_job("Business Development Manager")).role_category is None
+
+
+def test_product_manager_excluded_even_with_ai_in_jd():
+    # Real false positive caught in live testing: several Product Manager
+    # postings whose JD discussed the AI/ML product they manage were
+    # getting classified as "AI / Generative AI" engineering roles.
+    job = classify_role(
+        _job(
+            "Product Manager, Relevance and Personalization",
+            "You'll drive our Generative AI and Machine Learning roadmap.",
+        )
+    )
+    assert job.role_category is None
+
+
+def test_hr_recruiting_and_localization_titles_excluded():
+    assert classify_role(_job("People Partner")).role_category is None
+    assert classify_role(_job("Talent Acquisition Partner")).role_category is None
+    assert classify_role(_job("Localization Program Manager")).role_category is None
+    assert classify_role(_job("Senior Compensation Partner, Technology")).role_category is None
+
+
+def test_non_engineering_exclusion_checked_before_title_role_match():
+    # A title that would otherwise match an engineering pattern should
+    # still be excluded if it also names a non-engineering function.
+    job = classify_role(_job("Recruiter - Software Engineering Roles"))
+    assert job.role_category is None

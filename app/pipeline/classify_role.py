@@ -3,21 +3,23 @@ architecture.md §2B. Also doubles as the "is this a software engineering
 job at all" signal for filters.py: `role_category is None` means no
 target role family matched.
 
-Non-engineering titles (recruiter, sales, account management, product
-management, etc.) are excluded FIRST, before any positive role matching
-runs - the JD-fallback matching below is loose enough (it scans the
-whole job description, not just the title) that a recruiter's JD
-mentioning "hire great Software Engineers" or an account manager's JD
-mentioning "partner with our engineering team" would otherwise match the
-generic engineering patterns and get this classified as an engineering
-role it isn't. Caught via live testing: a "Senior Technical Recruiter"
-and several Product Manager postings were being kept before this gate
-existed.
+Title-only matching, deliberately - an earlier version fell back to
+scanning the whole JD body when the title didn't match, and that caused
+two separate real false positives found via live testing:
+1. A recruiter's JD mentioning "hire great Software Engineers" (who they
+   recruit for) and a product manager's JD mentioning "our Generative AI
+   roadmap" (the product they manage) matched the generic engineering
+   patterns and got kept as engineering roles.
+2. Even after adding a non-engineering-title gate for (1): a company's
+   generic "About us" boilerplate ("Our expertise spans Operations,
+   Training, Engineering, ... Machine Learning and Software
+   Engineering...") appeared at the top of every one of that company's
+   postings regardless of actual role, and got several Power BI/Cloud
+   Architect/data-analyst postings misclassified as "Machine Learning".
 
-Title matches are checked first, in priority order (most specific role
-family before generic ones, so e.g. "Senior ML Platform Engineer" lands
-on Machine Learning rather than the generic Platform/Infrastructure
-bucket). JD text is only consulted when the title itself gives no match.
+Both were JD-body matching picking up mentions of a technology/role
+*adjacent* to the posting rather than *of* it. Title-only avoids this
+class of bug entirely: a real engineering posting's title says so.
 """
 
 from __future__ import annotations
@@ -81,20 +83,11 @@ _ROLE_RULES: list[tuple[str, re.Pattern[str]]] = [
     ("Backend", re.compile(r"software\s+engineer|systems?\s+engineer", re.IGNORECASE)),
 ]
 
-# The generic catch-all rule above is the riskiest one to run against a
-# whole JD body (see module docstring) - JD-fallback matching skips it,
-# relying on title-only for that one. The more specific rules (AI/ML/
-# DevOps/etc.) are narrow enough phrases that JD-body matching is safe.
-_JD_FALLBACK_RULES = [
-    (category, pattern) for category, pattern in _ROLE_RULES
-    if not (category == "Backend" and pattern.pattern.startswith("software"))
-]
-
 
 def classify_role(job: JobDraft) -> JobDraft:
     """Set `job.role_category` in place (None if no target role family
     matches, or if the title clearly names a non-engineering function -
-    filters.py excludes on that)."""
+    filters.py excludes on that). Title-only - see module docstring."""
     title = job.job_title or ""
 
     if _NON_ENGINEERING_TITLE_RE.search(title):
@@ -103,12 +96,6 @@ def classify_role(job: JobDraft) -> JobDraft:
 
     for category, pattern in _ROLE_RULES:
         if pattern.search(title):
-            job.role_category = category
-            return job
-
-    jd = job.cleaned_job_description or ""
-    for category, pattern in _JD_FALLBACK_RULES:
-        if pattern.search(jd):
             job.role_category = category
             return job
 

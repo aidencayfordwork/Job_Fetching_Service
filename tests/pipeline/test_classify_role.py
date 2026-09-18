@@ -41,9 +41,12 @@ def test_ml_wins_over_platform_when_title_says_ml_platform():
     assert classify_role(_job("Senior ML Platform Engineer")).role_category == "Machine Learning"
 
 
-def test_falls_back_to_jd_when_title_has_no_signal():
+def test_ambiguous_title_with_no_signal_returns_none_not_jd_fallback():
+    # Classification is title-only (see module docstring for why JD-body
+    # fallback was removed) - an ambiguous title doesn't get a category
+    # just because the JD happens to mention a relevant technology.
     job = classify_role(_job("Product Engineer", "You'll build our machine learning pipelines."))
-    assert job.role_category == "Machine Learning"
+    assert job.role_category is None
 
 
 def test_non_software_role_returns_none():
@@ -101,4 +104,22 @@ def test_non_engineering_exclusion_checked_before_title_role_match():
     # A title that would otherwise match an engineering pattern should
     # still be excluded if it also names a non-engineering function.
     job = classify_role(_job("Recruiter - Software Engineering Roles"))
+    assert job.role_category is None
+
+
+def test_generic_company_boilerplate_in_jd_does_not_leak_into_role_category():
+    # Real false positive caught in live testing: a company's "About us"
+    # boilerplate ("Our expertise spans ... Machine Learning and Software
+    # Engineering...") appeared at the top of every posting from that
+    # company regardless of actual role, misclassifying a Power BI Data
+    # Analyst posting as "Machine Learning" when JD-fallback still ran.
+    job = classify_role(
+        _job(
+            "Mid Power BI Data Analyst",
+            "At Acme, we're a tech-enabled professional services company. "
+            "Our expertise spans Operations, Training, Engineering, "
+            "Nanotechnology, Statistics, Machine Learning and Software "
+            "Engineering.",
+        )
+    )
     assert job.role_category is None

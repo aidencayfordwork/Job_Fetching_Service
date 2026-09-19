@@ -43,6 +43,12 @@ _EMPLOYMENT_TYPES = {
     "internship": "INTERNSHIP", "temporary": "TEMPORARY",
 }
 _ANNUAL_PERIODS = {"year", "yearly", "annual", "annum"}
+# BidFlow keys companies on lower(trimmed name), so "Stripe, Inc." and "Stripe"
+# would be two employers there (breaking its past-employer exclusion).
+_LEGAL_SUFFIX_RE = re.compile(
+    r"[\s,]+(?:inc|incorporated|llc|l\.l\.c|ltd|limited|corp|corporation|plc|pbc|gmbh|pty\.?\s+ltd)\.?\s*$",
+    re.IGNORECASE,
+)
 _SCOPE_LOCATION_TEXT = {"US": "Remote (US)", "US-partial": "Remote (US, some states)"}
 
 
@@ -80,6 +86,15 @@ def hold_back_reason(job: Job, text: str) -> str | None:
 def _has_repeated_bullets(text: str) -> bool:
     bullets = Counter(line.strip() for line in text.split("\n") if line.strip().startswith("- "))
     return any(count >= 3 for count in bullets.values())
+
+
+def display_company(name: str) -> str:
+    cleaned = " ".join(name.split())
+    while True:
+        stripped = _LEGAL_SUFFIX_RE.sub("", cleaned).rstrip(" ,")
+        if not stripped or stripped == cleaned:
+            return cleaned
+        cleaned = stripped
 
 
 def clean_title(title: str) -> str:
@@ -148,7 +163,7 @@ def build_row(job: Job, text: str, tags: list[str], status: str) -> dict:
     return {
         "job_url": job_url(job),
         "jd_text": text,
-        "company": job.company_name.strip(),
+        "company": display_company(job.company_name),
         "title": clean_title(job.job_title),
         "country_code": "US",
         "work_type": "REMOTE",

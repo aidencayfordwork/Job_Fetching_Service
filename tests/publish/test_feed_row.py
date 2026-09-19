@@ -5,6 +5,7 @@ from app.publish.feed_row import (
     annual_usd_salary,
     canonical_url,
     clean_title,
+    display_company,
     feed_status,
     hold_back_reason,
 )
@@ -73,3 +74,15 @@ def test_hold_back_reasons():
     assert hold_back_reason(_job(original_location="Mexico"), _JD) == "not_verified_us_remote"
     assert hold_back_reason(_job(original_location="Remote"), _JD) == "not_verified_us_remote"
     assert hold_back_reason(_job(original_location="Remote - US", raw_job_description=_JD + " This is a hybrid role."), _JD + " This is a hybrid role.") == "not_verified_us_remote"
+
+
+def test_display_company_drops_legal_suffixes_only():
+    assert display_company("Chime Financial, Inc") == "Chime Financial"
+    assert display_company("Stripe, Inc.") == "Stripe"
+    assert display_company("Acme Robotics LLC") == "Acme Robotics"
+    assert display_company("Widgets Pty Ltd") == "Widgets"
+    assert display_company("  Figma  ") == "Figma"
+    # Names that merely contain those letters are untouched.
+    assert display_company("Incode Technologies") == "Incode Technologies"
+    assert display_company("Corpay") == "Corpay"
+    assert display_company("Inc") == "Inc"

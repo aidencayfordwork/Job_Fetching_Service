@@ -43,11 +43,13 @@ def test_ashby_style_remote_non_us_region():
     assert a.us_eligible is False
 
 
-def test_worldwide_is_us_eligible():
+def test_worldwide_job_is_remote_but_not_a_us_job():
+    # Owner's rule: only jobs explicitly for the US, not jobs a US engineer
+    # could merely also take.
     job = _job(original_location="Anywhere in the World")
     a = assess_remote_us(job)
     assert a.is_remote is True
-    assert a.us_eligible is True
+    assert a.us_eligible is False
     assert a.remote_scope == "Global"
 
 
@@ -162,10 +164,18 @@ def test_marketing_use_of_global_is_not_worldwide_remote():
     assert assess_remote_us(job).us_eligible is None
 
 
-def test_global_in_the_location_field_still_means_worldwide():
-    for location in ("Remote - Global", "Anywhere in the World", "Anywhere"):
+def test_worldwide_jobs_are_excluded_with_their_own_reason():
+    for location in ("Remote - Global", "Anywhere in the World", "Anywhere", "Worldwide"):
         a = assess_remote_us(_job(original_location=location))
-        assert (a.us_eligible, a.remote_scope) == (True, "Global"), location
+        assert (a.us_eligible, a.remote_scope) == (False, "Global"), location
+    job = _job(original_location="Remote", cleaned_job_description="Fully remote - work from anywhere.")
+    assert assess_remote_us(job).us_eligible is False
+    outcome = apply_filters(_job(original_location="Anywhere in the World", posted_at=datetime.now(UTC)))
+    assert (outcome.kept, outcome.reason) == (False, "worldwide_not_us_specific")
+
+
+def test_us_named_alongside_other_countries_still_counts():
+    assert assess_remote_us(_job(original_location="Remote - US or Canada")).us_eligible is True
 
 
 def test_us_listed_among_other_countries_is_eligible():

@@ -112,11 +112,11 @@ BidFlow never needs to call the platform to read jobs. The row in `job_feed.jobs
 3. Location field says US / U.S. / United States → **yes**.
 4. Location field says North America → **ambiguous** (not published).
 5. Location field names any non-US country, region or major city → **no**.
-6. Location field says Global / Anywhere / Anywhere in the World / worldwide → **yes** (worldwide includes the US).
+6. Location field says Global / Anywhere / Anywhere in the World / worldwide → **no**, with reason `worldwide_not_us_specific`. Only jobs explicitly for the US are published, not jobs a US engineer could merely also take. This is the platform owner's rule and is **stricter than your §5**, which would accept worldwide jobs.
 7. Location field names no place:
    - "must be based in <non-US>" → **no**;
    - a US mention in the first 1,500 characters of the description → **yes**;
-   - "worldwide" / "work from anywhere" → **yes**;
+   - "worldwide" / "work from anywhere" → **no** (same rule);
    - "<region> only" → **no**.
 8. Anything else → **ambiguous**, not published.
 
@@ -194,7 +194,7 @@ The platform keeps its own 167-term taxonomy (`config/keyword_taxonomy.yaml`, 14
 | `company` | Display name as the source gives it (see risk R6) |
 | `title` | As posted, minus trailing "(Remote)" / "- Remote, US" / requisition ids / emoji |
 | `country_code`, `work_type` | `US`, `REMOTE` |
-| `location_text` | The posting's own wording; if empty, "Remote (US)" / "Remote (worldwide)" |
+| `location_text` | The posting's own wording; if empty, "Remote (US)" / "Remote (US, some states)" |
 | `employment_type` | `FULL_TIME` etc. when stated, else null |
 | `posted_at` | Source publish time, UTC |
 | `verified_at` | Set at first publish. Changed only when a real content change is sent **and** the previous value is at least 24 h old. |
@@ -280,7 +280,7 @@ All of these require `X-API-Key`; CORS allows all origins.
 | `verified_at` refreshed at most once a day | Met | Refreshed only together with a real change (see Q1) |
 | TLS, pool of 1–3, stop and alert on auth error | Met | `BIDFLOW_SSL=require`, pool 2+1, `FeedAuthError` |
 | Connection error → retry with backoff | Partial | Retried on the next 10-min run, with no backoff in between |
-| Only verified US-remote jobs | Met | Re-verified at publish time |
+| Only verified US-remote jobs | Met, stricter | Re-verified at publish time; worldwide-only jobs are also excluded (owner's rule) |
 | `NEEDS_REVIEW` state and stored evidence | Not met | Ambiguous jobs are simply not published; evidence isn't stored (Q4) |
 | Full description, never truncated, line structure kept | Met | Snippet sources held back |
 | `job_url` canonical https, tracking removed | Met | |
@@ -353,6 +353,7 @@ All of these require `X-API-Key`; CORS allows all origins.
 
 **Changelog:**
 - 2026-09-19: publisher built and replica-tested; US-remote verification tightened (location field decides first); this guide created.
+- 2026-09-19: worldwide/"anywhere" jobs are no longer published. Only jobs explicitly for the US qualify (US, U.S., United States or US states named). Jobs listing the US alongside other countries ("US or Canada") still qualify. Worldwide jobs already published are sent as `CLOSED` on the next run.
 
 ---
 

@@ -12,7 +12,7 @@ Code: `app/publish/feed_row.py` (row), `app/publish/tagging.py` (tags), `app/pub
 | `title` | `job_title` | Only trailing noise removed: "(Remote)", "- Remote, US", "US Remote", "(US)", requisition ids, trailing emoji. |
 | `country_code` | — | Always `US` (only verified US-remote jobs are published). |
 | `work_type` | — | Always `REMOTE`. |
-| `location_text` | `original_location` | As posted; if empty, "Remote (US)" / "Remote (worldwide)" / "Remote (US, some states)" from the verified scope. |
+| `location_text` | `original_location` | As posted; if empty, "Remote (US)" / "Remote (US, some states)" from the verified scope. |
 | `employment_type` | `employment_type` | `full_time` → `FULL_TIME` etc.; null if unknown (most sources don't say). |
 | `posted_at` | `posted_at` | Source publish time, UTC (naive source timestamps are read as UTC). |
 | `verified_at` | publisher | Time of the first publish; refreshed only together with a real content change and at most once a day. |

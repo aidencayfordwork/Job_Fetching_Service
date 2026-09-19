@@ -157,8 +157,11 @@ def _assess_us_eligibility(location_text: str, jd_excerpt: str) -> tuple[bool | 
         return None, None, []
     if _NON_US_PLACE_RE.search(location_text):
         return False, None, []
+    # Only jobs explicitly for the US qualify. A worldwide/"anywhere" job is
+    # open to US engineers but isn't a US job (owner's rule - stricter than
+    # BidFlow's contract, which would accept it).
     if _WORLDWIDE_RE.search(location_text) or _LOCATION_GLOBAL_RE.search(location_text):
-        return True, "Global", []
+        return False, "Global", []
 
     if _MUST_BE_BASED_ABROAD_RE.search(jd_excerpt):
         return False, None, []
@@ -167,7 +170,7 @@ def _assess_us_eligibility(location_text: str, jd_excerpt: str) -> tuple[bool | 
         return True, "US", []
 
     if _WORLDWIDE_RE.search(jd_excerpt):
-        return True, "Global", []
+        return False, "Global", []
 
     if _NORTH_AMERICA_RE.search(jd_excerpt):
         # Ambiguous on its own (could be Canada-only) - not confident enough.
@@ -242,6 +245,8 @@ def apply_filters(job: JobDraft) -> FilterOutcome:
     if job.is_remote is not True:
         return FilterOutcome(False, "not_confirmed_remote", job)
 
+    if job.remote_scope == "Global":
+        return FilterOutcome(False, "worldwide_not_us_specific", job)
     if job.us_eligible is not True:
         return FilterOutcome(False, "not_confirmed_us_eligible", job)
 

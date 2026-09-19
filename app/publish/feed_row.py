@@ -43,7 +43,7 @@ _EMPLOYMENT_TYPES = {
     "internship": "INTERNSHIP", "temporary": "TEMPORARY",
 }
 _ANNUAL_PERIODS = {"year", "yearly", "annual", "annum"}
-_SCOPE_LOCATION_TEXT = {"US": "Remote (US)", "Global": "Remote (worldwide)", "US-partial": "Remote (US, some states)"}
+_SCOPE_LOCATION_TEXT = {"US": "Remote (US)", "US-partial": "Remote (US, some states)"}
 
 
 def jd_text(job: Job) -> str:

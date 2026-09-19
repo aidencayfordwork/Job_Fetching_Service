@@ -77,8 +77,8 @@ Verification is rule-based and deterministic. It runs when a job is stored and a
 
 1. An explicit "not open to US" style exclusion → reject.
 2. US states in the location field → US-eligible, states kept in `location_text`.
-3. The location field decides next: US / U.S. / United States → yes. North America → ambiguous. Any non-US country, region or major city → no. "Global" / "Anywhere in the world" → yes.
-4. Only when the location field names no place ("Remote", empty): "must be based in <non-US>" → no; a US mention in the first 1,500 characters of the description → yes; "worldwide" / "work from anywhere" → yes.
+3. The location field decides next: US / U.S. / United States → yes. North America → ambiguous. Any non-US country, region or major city → no. "Global" / "Anywhere in the world" → no: only jobs explicitly for the US are published (the owner's rule, stricter than your §5).
+4. Only when the location field names no place ("Remote", empty): "must be based in <non-US>" → no; a US mention in the first 1,500 characters of the description → yes; "worldwide" / "work from anywhere" → no.
 5. Hybrid, on-site, in-office or "N days a week in the office" anywhere in the location or opening text → not remote.
 6. Anything else is ambiguous and not published.
 

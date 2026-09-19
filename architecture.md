@@ -916,5 +916,13 @@ before hashing.
   the HTML cleaner glued headings to the next paragraph. Verified against a
   local replica: 102 jobs published, second run sends nothing.
 
+- Requirement change (owner): only jobs explicitly for the US are kept —
+  not worldwide/"anywhere" jobs a US engineer could merely also take, and
+  not jobs based in Canada/LATAM/Europe. `filters.py` now excludes
+  worldwide scope with reason `worldwide_not_us_specific` (location field or,
+  when the location names no place, the description). Jobs naming the US
+  alongside other countries ("US or Canada") still qualify. Stricter than
+  BidFlow's §5; documented in docs/bidflow/COLLABORATION.md.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

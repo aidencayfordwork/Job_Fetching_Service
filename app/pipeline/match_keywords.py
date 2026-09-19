@@ -31,10 +31,16 @@ class _CompiledTerm:
 
 
 def _compile_term(canonical: str, category: str, aliases: list[str], case_sensitive: bool) -> _CompiledTerm:
-    variants = {canonical, *aliases}
-    branches = (rf"(?<![A-Za-z0-9]){re.escape(v.strip())}(?![A-Za-z0-9])" for v in variants)
-    flags = 0 if case_sensitive else re.IGNORECASE
-    return _CompiledTerm(canonical=canonical, category=category, pattern=re.compile("|".join(branches), flags))
+    # Case-sensitivity applies only to the short ambiguous canonical token
+    # itself ("Go", "R", "C"); its aliases ("golang", "r language") are
+    # unambiguous and must match in any casing, e.g. "Golang".
+    def _branch(variant: str, sensitive: bool) -> str:
+        body = rf"(?<![A-Za-z0-9]){re.escape(variant.strip())}(?![A-Za-z0-9])"
+        return body if sensitive else f"(?i:{body})"
+
+    branches = [_branch(canonical, case_sensitive)]
+    branches.extend(_branch(alias, False) for alias in aliases if alias != canonical)
+    return _CompiledTerm(canonical=canonical, category=category, pattern=re.compile("|".join(branches)))
 
 
 @lru_cache(maxsize=1)

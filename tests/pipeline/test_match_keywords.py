@@ -43,3 +43,11 @@ def test_cpp_and_csharp_symbol_boundaries():
     assert "C++" in found
     assert "C#" in found
     assert "JavaScript" in found
+
+
+def test_aliases_of_case_sensitive_terms_match_in_any_casing():
+    # "Go" itself is case-sensitive (English "go"), but "Golang" is not ambiguous.
+    assert "Go" in match_keywords("We write Golang services")
+    assert "Go" in match_keywords("we write golang services")
+    assert "Go" not in match_keywords("we go above and beyond")
+    assert "R" in match_keywords("Strong R Programming background")

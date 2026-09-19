@@ -38,6 +38,9 @@ class JobDraft:
     source_url: str
 
     direct_apply_url: str | None = None
+    # ATS board the job was fetched from (None for non-ATS sources); lets a
+    # run tell which open jobs vanished from a board it fetched completely.
+    ats_board_token: str | None = None
 
     # Classification
     level: str | None = None

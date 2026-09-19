@@ -16,7 +16,7 @@ import json
 from dataclasses import fields
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, text, update
+from sqlalchemy import ARRAY, String, all_, any_, bindparam, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.ats_common import AtsTarget
@@ -59,6 +59,7 @@ def _apply_draft_to_row(row: Job, job: JobDraft, now: datetime) -> None:
         setattr(row, name, getattr(job, name))
     row.last_seen_at = now
     row.active = True
+    row.consecutive_misses = 0
     row.updated_at = now
 
 
@@ -191,6 +192,45 @@ async def deactivate_stale_by_posted_age(session: AsyncSession, max_age_days: in
     for row in deactivated:
         await _notify_job_event(session, "job.deactivated", row)
     return len(deactivated)
+
+
+async def record_ats_misses(
+    session: AsyncSession,
+    source: str,
+    completed_boards: set[str],
+    seen_job_ids: set[str],
+    misses_to_close: int,
+) -> int:
+    """After a run that read `completed_boards` in full: jobs of this source
+    still listed are reset; open jobs on those boards that were not listed get
+    one more miss, and are closed once they reach `misses_to_close`. Boards
+    that failed to load are untouched. Returns how many jobs were closed."""
+    seen = bindparam("seen", list(seen_job_ids), type_=ARRAY(String))
+    await session.execute(
+        update(Job).where(Job.source == source, Job.source_job_id == any_(seen)).values(consecutive_misses=0)
+    )
+    if not completed_boards:
+        return 0
+    await session.execute(
+        update(Job)
+        .where(
+            Job.source == source,
+            Job.active.is_(True),
+            Job.ats_board_token.in_(completed_boards),
+            Job.source_job_id != all_(seen),
+        )
+        .values(consecutive_misses=Job.consecutive_misses + 1)
+    )
+    result = await session.execute(
+        update(Job)
+        .where(Job.source == source, Job.active.is_(True), Job.consecutive_misses >= misses_to_close)
+        .values(active=False, updated_at=datetime.now(UTC))
+        .returning(Job)
+    )
+    closed = list(result.scalars())
+    for row in closed:
+        await _notify_job_event(session, "job.deactivated", row)
+    return len(closed)
 
 
 async def get_enabled_ats_companies(session: AsyncSession, ats_platform: str) -> list[AtsTarget]:

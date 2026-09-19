@@ -28,13 +28,19 @@ class AtsTarget(NamedTuple):
 class AtsMultiCompanyConnector(SourceConnector):
     board_targets: Sequence[AtsTarget] = ()
 
+    def __init__(self) -> None:
+        # Boards whose full job list was read in the latest fetch().
+        self.completed_board_tokens: set[str] = set()
+
     async def fetch(self, since: datetime | None) -> AsyncIterator[RawJob]:
+        self.completed_board_tokens = set()
         for target in self.board_targets:
             try:
                 async for raw in self._fetch_company(target, since):
                     raw["_company_name"] = target.company_name
                     raw["_board_token"] = target.board_token
                     yield raw
+                self.completed_board_tokens.add(target.board_token)
             except Exception:
                 log.warning(
                     "ats_company_fetch_failed",

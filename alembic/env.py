@@ -42,7 +42,8 @@ def do_run_migrations(connection) -> None:
     # End the transaction the check opened; otherwise Alembic's migration runs
     # inside it and is rolled back when the connection closes.
     connection.commit()
-    context.configure(connection=connection, target_metadata=target_metadata, version_table_schema=schema)
+    # search_path puts every table, alembic_version included, in `schema`.
+    context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
 

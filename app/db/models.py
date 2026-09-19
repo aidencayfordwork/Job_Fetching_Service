@@ -139,6 +139,9 @@ class Job(Base):
 
     # Internal
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    ats_board_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Consecutive full fetches of its board that no longer listed this job.
+    consecutive_misses: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     requires_active_clearance: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     canonical_fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

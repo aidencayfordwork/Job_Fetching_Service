@@ -169,13 +169,41 @@ def build_row(job: Job, text: str, tags: list[str], status: str) -> dict:
         "work_type": "REMOTE",
         "location_text": (job.original_location or "").strip() or _SCOPE_LOCATION_TEXT.get(job.remote_scope or ""),
         "employment_type": _EMPLOYMENT_TYPES.get((job.employment_type or "").lower()),
-        "posted_at": job.posted_at,
+        "posted_at": as_utc(job.posted_at),
         "salary_min": low,
         "salary_max": high,
         "salary_text": job.original_salary_text,
         "tags": tags,
         "status": status,
     }
+
+
+def row_from_feed(record) -> dict:
+    """A job_feed.jobs row in build_row()'s shape, so its content_hash equals
+    the hash of the row that was published (BidFlow normalizes case, trims and
+    tag spelling the same way build_row already does)."""
+    return {
+        "job_url": record["job_url"],
+        "jd_text": record["jd_text"],
+        "company": record["company"],
+        "title": record["title"],
+        "country_code": record["country_code"],
+        "work_type": record["work_type"],
+        "location_text": record["location_text"],
+        "employment_type": record["employment_type"],
+        "posted_at": as_utc(record["posted_at"]),
+        "salary_min": float(record["salary_min"]) if record["salary_min"] is not None else None,
+        "salary_max": float(record["salary_max"]) if record["salary_max"] is not None else None,
+        "salary_text": record["salary_text"],
+        "tags": list(record["tags"]),
+        "status": record["status"],
+    }
+
+
+def as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def content_hash(row: dict) -> str:

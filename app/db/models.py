@@ -211,9 +211,13 @@ class FeedPublishLog(Base):
     __tablename__ = "feed_publish_log"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), nullable=False, index=True)
+    # Null for a feed row that matches no platform job (an orphan being closed).
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id"), nullable=True, index=True)
+    feed_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    feed_source_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    result: Mapped[str] = mapped_column(String(16), nullable=False)  # INSERTED|UPDATED|UNCHANGED|REJECTED
+    # INSERTED | UPDATED | UNCHANGED | REJECTED | ADOPTED | ORPHAN_CLOSED
+    result: Mapped[str] = mapped_column(String(16), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     constraint_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)

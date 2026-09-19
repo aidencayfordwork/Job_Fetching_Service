@@ -14,47 +14,24 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import or_, select, text
+from sqlalchemy import or_, select
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, create_async_engine
 
 from app.config import get_settings
 from app.core.logging import get_logger
 from app.db.base import async_session_factory
-from app.db.models import FeedPublication, FeedPublishLog, Job
+from app.db.models import FeedPublication, FeedPublishLog, Job, JobAltSource
 from app.publish.catalog import TagCatalog, load_catalog
+from app.publish.contract import UPSERT_SQL
 from app.publish.feed_row import build_row, content_hash, feed_status, hold_back_reason, jd_text
+from app.publish.reconcile import ReconcileSummary, reconcile
 from app.publish.tagging import choose_tags
 
 log = get_logger(__name__)
 
 BATCH_SIZE = 200
 VERIFIED_AT_REFRESH = timedelta(days=1)
-
-# The contract's upsert, verbatim, plus a RETURNING clause to tell
-# inserted / updated / unchanged apart (updated_at only moves when a value
-# really changed, and now() is the transaction's timestamp).
-UPSERT_SQL = text("""
-INSERT INTO job_feed.jobs (
-    source, source_job_id, job_url, jd_text, company, title,
-    country_code, work_type, location_text, employment_type,
-    posted_at, verified_at, salary_min, salary_max, salary_text,
-    tags, status
-) VALUES (
-    :source, :source_job_id, :job_url, :jd_text, :company, :title,
-    :country_code, :work_type, :location_text, :employment_type,
-    :posted_at, :verified_at, :salary_min, :salary_max, :salary_text,
-    :tags, :status
-)
-ON CONFLICT (source, source_job_id) DO UPDATE SET
-    job_url = EXCLUDED.job_url, jd_text = EXCLUDED.jd_text, company = EXCLUDED.company,
-    title = EXCLUDED.title, location_text = EXCLUDED.location_text,
-    employment_type = EXCLUDED.employment_type, posted_at = EXCLUDED.posted_at,
-    verified_at = EXCLUDED.verified_at, salary_min = EXCLUDED.salary_min,
-    salary_max = EXCLUDED.salary_max, salary_text = EXCLUDED.salary_text,
-    tags = EXCLUDED.tags, status = EXCLUDED.status
-RETURNING (xmax = 0) AS inserted, (updated_at = now()) AS touched
-""")
 
 _AUTH_SQLSTATES = {"28000", "28P01"}
 
@@ -77,6 +54,7 @@ class PublishSummary:
     results: Counter = field(default_factory=Counter)
     held_back: Counter = field(default_factory=Counter)
     skipped_unchanged: int = 0
+    reconciled: ReconcileSummary = field(default_factory=ReconcileSummary)
 
 
 _feed_engine: AsyncEngine | None = None
@@ -122,6 +100,21 @@ async def _run(session: AsyncSession, feed_engine: AsyncEngine, job_ids: list[in
         _raise_if_auth_error(exc)
         raise
 
+    only_sources = None
+    if job_ids is not None:
+        only_sources = set((await session.execute(select(Job.source).where(Job.id.in_(job_ids)))).scalars())
+        only_sources |= set(
+            (
+                await session.execute(
+                    select(FeedPublication.feed_source).where(FeedPublication.job_id.in_(job_ids))
+                )
+            ).scalars()
+        )
+        only_sources |= set(
+            (await session.execute(select(JobAltSource.source).where(JobAltSource.job_id.in_(job_ids)))).scalars()
+        )
+    summary.reconciled = await reconcile(session, feed_engine, now, only_sources)
+
     publications = {p.job_id: p for p in (await session.execute(select(FeedPublication))).scalars()}
     pinned = {(p.feed_source, p.feed_source_job_id): p.job_id for p in publications.values()}
 
@@ -146,7 +139,7 @@ async def _run(session: AsyncSession, feed_engine: AsyncEngine, job_ids: list[in
     log.info(
         "publish_run_complete",
         results=dict(summary.results), held_back=dict(summary.held_back),
-        skipped_unchanged=summary.skipped_unchanged,
+        skipped_unchanged=summary.skipped_unchanged, reconciled=vars(summary.reconciled),
     )
     return summary
 
@@ -236,7 +229,8 @@ async def _send_batch(
             pub.first_published_at = pub.first_published_at or now
         session.add(
             FeedPublishLog(
-                job_id=planned.job_id, result=result, status=planned.row["status"],
+                job_id=planned.job_id, feed_source=planned.feed_source,
+                feed_source_job_id=planned.feed_source_job_id, result=result, status=planned.row["status"],
                 constraint_name=constraint, message=message,
             )
         )

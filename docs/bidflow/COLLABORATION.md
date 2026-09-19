@@ -435,7 +435,7 @@ Service entry for the combined `docker-compose.yml`:
 
 ```yaml
   jobfetch-backend:
-    build: https://github.com/aidencayfordwork/Job_Fetching_Service.git#main
+    image: ghcr.io/aidencayfordwork/job_fetching_service:latest
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://jobfetch_app:${JOBFETCH_APP_PASSWORD}@postgres:5432/${DB_NAME}
@@ -453,6 +453,25 @@ Service entry for the combined `docker-compose.yml`:
 ```
 
 The change-notification channel is prefixed (`platform_job_events`), so it can't clash with BidFlow's.
+
+**Who manages what after deployment**
+
+| | Job-fetch owner | BidFlow owner |
+|---|---|---|
+| Code, repo, releases | This repo | BidFlow's repo |
+| Container | `jobfetch-backend` only | BidFlow's containers |
+| Database | `platform` schema (as `jobfetch_app`) | Everything else, and backups of the whole database |
+| Server + combined `docker-compose.yml` | Needs access to update its own container | Owns them |
+| Contract (`job_feed.jobs`, tags) | Changes agreed by both first | Changes agreed by both first |
+
+**Updating or rolling back the job-fetch service.** Each push to this repo's `main` runs lint and the full test suite (CI). Only if they pass is a new image published, as `ghcr.io/aidencayfordwork/job_fetching_service:latest` plus `:sha-<commit>`. On the server, this touches only that one container; BidFlow keeps running:
+
+```bash
+docker compose pull jobfetch-backend && docker compose up -d jobfetch-backend
+# roll back: set the image tag to a previous :sha-<commit>, then the same command
+```
+
+Database migrations run automatically when the new container starts, and only inside `platform`.
 
 ---
 

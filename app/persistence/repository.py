@@ -27,7 +27,8 @@ from app.pipeline.dedupe import ExistingJobRef, find_duplicate, is_higher_priori
 
 log = get_logger(__name__)
 
-JOB_EVENTS_CHANNEL = "job_events"
+# Prefixed: the database may be shared with BidFlow, whose channels live alongside.
+JOB_EVENTS_CHANNEL = "platform_job_events"
 
 
 async def _notify_job_event(session: AsyncSession, event: str, row: Job) -> None:

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +8,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+asyncpg://jobfetch:jobfetch@localhost:5432/jobfetch"
+    # Postgres schema for the platform's own tables. "platform" when sharing
+    # BidFlow's database (docs/bidflow/COLLABORATION.md §15a).
+    database_schema: str = Field(default="public", pattern=r"^[a-z_][a-z0-9_]*$")
     api_key: str = "dev-local-key"
     log_level: str = "INFO"
 

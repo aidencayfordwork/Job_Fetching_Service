@@ -21,6 +21,7 @@ engine = create_async_engine(
     # incompatibility. pool_recycle avoids the same stale-connection
     # problem without relying on that ping.
     pool_recycle=1800,
+    connect_args={"server_settings": {"search_path": settings.database_schema}},
 )
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
 

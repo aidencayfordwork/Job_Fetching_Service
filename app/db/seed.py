@@ -22,6 +22,7 @@ import asyncio
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.logging import get_logger
 from app.db.base import async_session_factory
 from app.db.models import Source
@@ -42,18 +43,27 @@ SOURCES: list[dict] = [
     {"name": "jobicy", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
     {"name": "weworkremotely", "kind": "rss", "fetch_interval_seconds": ONE_HOUR, "enabled": True},
     {"name": "remotive", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": True},
-    # Implemented, but disabled until real app_id/app_key or an API key
-    # is configured in Settings - see architecture.md for signup links.
+    # Enabled at first seed only when their credentials are configured.
     {"name": "adzuna", "kind": "aggregator_api", "fetch_interval_seconds": THREE_HOURS, "enabled": False},
     # Free tier is a 500-call lifetime cap - poll less often to conserve quota.
     {"name": "jooble", "kind": "aggregator_api", "fetch_interval_seconds": SIX_HOURS, "enabled": False},
 ]
 
 
+def _initial_rows() -> list[dict]:
+    settings = get_settings()
+    has_credentials = {
+        "adzuna": bool(settings.adzuna_app_id and settings.adzuna_app_key),
+        "jooble": bool(settings.jooble_api_key),
+    }
+    return [
+        {**row, "enabled": row["enabled"] or has_credentials.get(row["name"], False), "config": {}}
+        for row in SOURCES
+    ]
+
+
 async def seed_sources(session: AsyncSession) -> int:
-    stmt = pg_insert(Source).values(
-        [{**row, "config": {}} for row in SOURCES]
-    ).on_conflict_do_nothing(index_elements=["name"])
+    stmt = pg_insert(Source).values(_initial_rows()).on_conflict_do_nothing(index_elements=["name"])
     result = await session.execute(stmt)
     await session.commit()
     return result.rowcount or 0

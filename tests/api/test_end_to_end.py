@@ -125,3 +125,37 @@ async def test_full_pipeline_end_to_end(client, api_headers, db_session):
     assert runs[0]["jobs_fetched"] == 3
     assert runs[0]["jobs_new"] == 1
     assert runs[0]["jobs_filtered_out"] == 2
+
+
+@respx.mock
+async def test_company_added_after_a_successful_run_still_gets_its_existing_jobs(client, api_headers, db_session):
+    """Regression: an earlier successful run (even one that covered zero
+    companies) used to advance a source-wide `since` watermark, so a company
+    discovered afterwards had all its already-open jobs skipped forever."""
+    db_session.add(
+        Source(name="e2e-late-greenhouse", kind="ats", fetch_interval_seconds=10800, enabled=True, config={})
+    )
+    await db_session.flush()
+
+    connector = GreenhouseConnector()
+    connector.name = "e2e-late-greenhouse"
+
+    await run_source(connector, session=db_session)  # no companies yet -> "succeeds" with nothing
+
+    db_session.add(
+        AtsCompany(
+            company_name="E2E Late Co", ats_platform="e2e-late-greenhouse",
+            board_token="e2elateco", source_of_discovery="discovery",
+            verified=True, enabled=True,
+        )
+    )
+    await db_session.flush()
+    payload = {"jobs": [dict(_PAYLOAD["jobs"][0], company_name="E2E Late Co", id=7771234)]}
+    respx.get("https://boards-api.greenhouse.io/v1/boards/e2elateco/jobs").mock(
+        return_value=Response(200, json=payload)
+    )
+
+    await run_source(connector, session=db_session)
+
+    resp = await client.get("/jobs", headers=api_headers, params={"company": "E2E Late Co"})
+    assert resp.json()["total"] == 1

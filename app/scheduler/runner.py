@@ -51,6 +51,12 @@ async def _run_source(
 
     if isinstance(connector, AtsMultiCompanyConnector):
         connector.board_targets = await repository.get_enabled_ats_companies(session, connector.name)
+        # A single source-wide watermark is wrong here: the company set
+        # keeps growing via discovery, and a newly added company's open
+        # jobs all predate the watermark, so they'd be skipped forever
+        # (a run that fetched zero companies also advances it). Boards are
+        # one cheap request each and upserts are idempotent, so fetch fully.
+        since = None
 
     dedupe_candidates = await repository.get_recent_active_jobs(session)
 

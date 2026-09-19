@@ -353,20 +353,68 @@ All of these require `X-API-Key`; CORS allows all origins.
 
 **Changelog:**
 - 2026-09-19: publisher built and replica-tested; US-remote verification tightened (location field decides first); this guide created.
+- 2026-09-19: decisions recorded (§15); combined one-server, one-database deployment agreed (§15a).
 - 2026-09-19: worldwide/"anywhere" jobs are no longer published. Only jobs explicitly for the US qualify (US, U.S., United States or US states named). Jobs listing the US alongside other countries ("US or Canada") still qualify. Worldwide jobs already published are sent as `CLOSED` on the next run.
 
 ---
 
-## 15. Open questions for BidFlow
+## 15. Decisions (2026-09-19)
 
-1. **`verified_at`:** set at first publish and refreshed only together with a real change (≤ once a day). OK, or refresh daily (which re-announces every job daily)?
-2. **Catalog:** add `security` and the frequent unknown tags (rust, databricks, grpc, mongodb, c++, scala, mysql, ruby, graphql, bigquery, jenkins, redis, elasticsearch…)?
-3. **Aggregator-only jobs:** publish with the aggregator `job_url`, or hold them back until the employer URL is resolved?
-4. **Evidence storage:** do you need stored verification evidence and a `NEEDS_REVIEW` queue now, or later?
-5. **Closing:** OK to switch ATS jobs to "closed after 2 consecutive misses"?
-6. **Manual jobs:** will BidFlow's tools call `POST /jobs/submit` (they'd need the platform API key), and with `source = "linkedin"` only?
-7. **First import:** mute alerts for the first bulk insert, or should the platform trickle it in (e.g. 20 jobs per run)?
-8. **Optional columns:** add `seniority`, `eligible_states`, `min_years_experience`, `apply_url` to `job_feed.jobs`? The platform already has these values.
+The platform owner has agreed to the answers below. **Decided** items are final. **Proposed** items are BidFlow's to confirm; please reply "agree" or give a different answer.
+
+| # | Question | Answer | Status |
+|---|---|---|---|
+| 1 | `verified_at`: refresh daily, or only with a real change? | Only with a real change (≤ once a day), so unchanged jobs never re-announce. | Proposed, BidFlow to confirm |
+| 2 | Add missing catalog tags? | Yes: `security` first, then rust, databricks, grpc, mongodb, c++, scala, mysql, ruby, graphql, bigquery, jenkins, redis, elasticsearch. | Proposed, BidFlow to do |
+| 3 | Aggregator-only jobs (link goes to Himalayas/Jobicy/WWR/Remotive, not the employer)? | **Publish them.** The bidder clicks through once more. | **Decided** (owner) |
+| 4 | Store verification evidence / a `NEEDS_REVIEW` queue now? | Later. Ambiguous jobs stay unpublished meanwhile. | Proposed, BidFlow to confirm |
+| 5 | Close ATS jobs after 2 consecutive misses (~6 h) instead of 5 days? | **Yes.** The platform implements it. | **Decided** (owner) |
+| 6 | Who calls `POST /jobs/submit`? | The owner's LinkedIn job providers, through BidFlow, with the platform API key and `source = "linkedin"` only. | **Decided** (owner); BidFlow wires the call |
+| 7 | First import (~100+ jobs at once)? | BidFlow mutes alerts for the first bulk import. | Proposed, BidFlow to do |
+| 8 | Optional columns on `job_feed.jobs`? | Add at least `seniority` and `eligible_states`; `min_years_experience` and `apply_url` are welcome too. The platform starts sending them once they exist. | Proposed, BidFlow to do |
+
+---
+
+## 15a. Combined deployment (decided)
+
+Both services go on **one server, deployed together, sharing one PostgreSQL database**, but as **two separate backends**. BidFlow's frontend and backend are one service, and the job-fetch backend (scheduler plus small API) is another. A crash or redeploy of one doesn't take down the other, and each side keeps its own code.
+
+```
+one server, one docker-compose
+├── bidflow-frontend
+├── bidflow-backend
+├── jobfetch-backend        (this repo)
+└── postgres (one database)
+    ├── schema job_feed     owned by BidFlow; jobfetch writes here only as jobfeed_writer
+    ├── BidFlow's schemas   no access for jobfetch
+    └── schema platform     jobfetch's own tables; no access needed by BidFlow
+```
+
+**BidFlow's one-time database setup** (run as the database owner):
+
+```sql
+CREATE ROLE jobfetch_app LOGIN PASSWORD '<secret-1>';
+CREATE SCHEMA platform AUTHORIZATION jobfetch_app;
+-- jobfeed_writer: created by BidFlow's own migrations, same grants as job_feed_schema.sql
+-- ALTER ROLE jobfeed_writer PASSWORD '<secret-2>';
+```
+
+- `jobfetch_app` owns `platform` and gets nothing else. Its migrations, including its Alembic version table, stay inside `platform`, so they never collide with BidFlow's.
+- The platform connects with **two logins**: `jobfetch_app` for its own schema, and `jobfeed_writer` for the feed. The contract boundary stays exactly as before, even inside one database.
+- Deduplication, verification and tagging all happen in `platform`. `job_feed.jobs` only ever receives one row per opening.
+
+**jobfetch-backend environment** (secrets are passed by the deployment, never committed):
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://jobfetch_app:<secret-1>@postgres:5432/<db>` |
+| `DATABASE_SCHEMA` | `platform` |
+| `BIDFLOW_DATABASE_URL` | `postgresql+asyncpg://jobfeed_writer:<secret-2>@postgres:5432/<db>` |
+| `BIDFLOW_SSL` | `require` if the database serves TLS; `disable` only on a private docker network with no TLS |
+| `API_KEY` | Shared with BidFlow's backend, for `POST /jobs/submit` |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY` | Owner supplies |
+
+The Dockerfile and the platform-side schema support are being added now (§13); this section will say when they're ready.
 
 ---
 

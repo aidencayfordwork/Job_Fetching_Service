@@ -12,8 +12,15 @@ import re
 from dataclasses import dataclass
 
 _TAG_RE = re.compile(r"<[^>]+>")
-_WHITESPACE_RE = re.compile(r"[ \t]+")
+_WHITESPACE_RE = re.compile(r"[ \t\xa0]+")
 _BLANK_LINES_RE = re.compile(r"\n{3,}")
+_SCRIPT_STYLE_RE = re.compile(r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL)
+_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_LI_OPEN_RE = re.compile(r"<li\b[^>]*>", re.IGNORECASE)
+_BLOCK_TAG_RE = re.compile(
+    r"</?(?:p|div|ul|ol|h[1-6]|tr|table|section|article|blockquote|pre|header|footer)\b[^>]*>",
+    re.IGNORECASE,
+)
 
 # Some sources (e.g. RemoteOK) append an anti-spam instruction to every
 # description ("Please mention the word X when applying..."). It's noise
@@ -34,10 +41,15 @@ def clean_html(raw: str | None) -> str:
     # A second unescape is a no-op unless the content was double-escaped.
     text = html.unescape(text)
     text = _SPAM_MARKER_RE.sub("", text)
-    text = text.replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
-    text = text.replace("</p>", "\n").replace("</li>", "\n").replace("</div>", "\n")
+    text = _SCRIPT_STYLE_RE.sub("", text)
+    text = _BR_RE.sub("\n", text)
+    # Headings, paragraphs and list items become their own lines (bullets
+    # marked), so section structure survives for readers downstream.
+    text = _LI_OPEN_RE.sub("\n- ", text)
+    text = _BLOCK_TAG_RE.sub("\n", text)
     text = _TAG_RE.sub("", text)
     text = _WHITESPACE_RE.sub(" ", text)
+    text = "\n".join(line.strip() for line in text.split("\n"))
     text = _BLANK_LINES_RE.sub("\n\n", text)
     return text.strip()
 

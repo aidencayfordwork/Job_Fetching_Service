@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     adzuna_app_key: str = ""
     jooble_api_key: str = ""
 
+    # BidFlow job feed (docs/bidflow/JOB_FEED_CONTRACT.md). Publishing is
+    # off while the URL is empty. Use the asyncpg form:
+    # postgresql+asyncpg://jobfeed_writer:<password>@<host>:<port>/<db>
+    bidflow_database_url: str = ""
+    # "require" in production (the contract mandates TLS); "disable" only for
+    # the local replica.
+    bidflow_ssl: str = "require"
+    publish_interval_seconds: int = 10 * 60
+
 
 @lru_cache
 def get_settings() -> Settings:

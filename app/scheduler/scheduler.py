@@ -19,6 +19,7 @@ from app.core.logging import get_logger
 from app.db.base import async_session_factory
 from app.db.models import Source
 from app.scheduler.discovery_job import run_discovery
+from app.publish.publisher import run_publish
 from app.scheduler.runner import run_source
 
 log = get_logger(__name__)
@@ -66,6 +67,17 @@ async def start_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         next_run_time=datetime.now(),
     )
+
+    if settings.bidflow_database_url:
+        scheduler.add_job(
+            run_publish,
+            "interval",
+            seconds=settings.publish_interval_seconds,
+            id="publish",
+            max_instances=1,
+            coalesce=True,
+            next_run_time=datetime.now(),
+        )
 
     scheduler.start()
     _scheduler = scheduler

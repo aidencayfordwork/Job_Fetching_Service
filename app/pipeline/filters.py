@@ -51,17 +51,37 @@ _REMOTE_RE = re.compile(r"\bremote\b", re.IGNORECASE)
 _US_TOKEN = r"(?-i:USA?)"
 
 _EXCLUSION_CARVEOUT_RE = re.compile(
-    rf"(excluding|except|not\s+(?:available|open|eligible)\s+(?:to|in|for)|no)\s+(?:the\s+)?(?:{_US_TOKEN}|u\.s\.|united\s+states)\b",
+    rf"(excluding|except|not\s+(?:available|open|eligible)\s+(?:to|in|for)|no)\s+(?:the\s+)?(?:{_US_TOKEN}\b|u\.s\.?(?![A-Za-z])|united\s+states\b)",
     re.IGNORECASE,
 )
-_US_SIGNAL_RE = re.compile(rf"\b(united\s+states|{_US_TOKEN}|u\.s\.)\b", re.IGNORECASE)
+# "U.S." is followed by a space or end, so it can't end with \b like the others.
+_US_SIGNAL_RE = re.compile(rf"\b(?:united\s+states\b|{_US_TOKEN}\b|u\.s\.?(?![A-Za-z]))", re.IGNORECASE)
 _WORLDWIDE_RE = re.compile(
-    r"anywhere\s+in\s+the\s+world|worldwide|\bglobal(?:ly)?\b|any\s*time\s*zone", re.IGNORECASE
+    r"anywhere\s+in\s+the\s+world|worldwide|work\s+from\s+anywhere|any\s*time\s*zone", re.IGNORECASE
+)
+# A bare "global" is only trusted in the short location field ("Remote - Global");
+# in a description it's usually marketing ("a global company").
+_LOCATION_GLOBAL_RE = re.compile(r"\bglobal(?:ly)?\b|^\s*anywhere\s*$", re.IGNORECASE)
+_NON_US_PLACE = (
+    r"uk|united\s+kingdom|england|scotland|ireland|eu|europe|emea|apac|latam|latin\s+america"
+    r"|south\s+america|central\s+america|canada|mexico|brazil|argentina|colombia|chile|peru|uruguay"
+    r"|costa\s+rica|germany|france|spain|portugal|italy|netherlands|belgium|switzerland|austria"
+    r"|poland|czechia|czech\s+republic|romania|bulgaria|hungary|greece|serbia|croatia|ukraine"
+    r"|sweden|norway|denmark|finland|estonia|latvia|lithuania|israel|turkey|egypt|nigeria|kenya"
+    r"|south\s+africa|morocco|india|pakistan|bangladesh|sri\s+lanka|philippines|vietnam|thailand"
+    r"|malaysia|singapore|indonesia|japan|south\s+korea|korea|china|hong\s+kong|taiwan|australia"
+    r"|new\s+zealand|united\s+arab\s+emirates|uae|saudi\s+arabia|asia|africa|middle\s+east"
+    r"|london|berlin|toronto|vancouver|montreal|bangalore|bengaluru|hyderabad|pune|tel\s+aviv"
+    r"|amsterdam|paris|madrid|barcelona|lisbon|warsaw|krakow|bucharest|dublin|sydney|melbourne"
+    r"|tokyo|s[aã]o\s+paulo|buenos\s+aires|bogot[aá]|manila"
+)
+_NON_US_PLACE_RE = re.compile(rf"\b(?:{_NON_US_PLACE})\b", re.IGNORECASE)
+_MUST_BE_BASED_ABROAD_RE = re.compile(
+    rf"\b(?:must|should|need\s+to|required\s+to)\s+(?:be\s+)?(?:based|located|living|reside|residing)"
+    rf"\s+in\s+(?:the\s+)?(?:{_NON_US_PLACE})\b",
+    re.IGNORECASE,
 )
 _NORTH_AMERICA_RE = re.compile(r"north(?:ern)?\s+america", re.IGNORECASE)
-_NON_US_REGION_WORD_RE = re.compile(
-    r"\b(uk|united\s+kingdom|eu|europe|emea|apac|latam|canada|india)\b", re.IGNORECASE
-)
 _NON_US_REGION_ONLY_RE = re.compile(
     r"\b(uk|united\s+kingdom|eu|europe|emea|apac|latam|canada|india)\s+only\b|only\s+(?:the\s+)?(uk|eu|europe|emea|apac|latam|canada|india)\b",
     re.IGNORECASE,
@@ -127,26 +147,35 @@ def _assess_us_eligibility(location_text: str, jd_excerpt: str) -> tuple[bool | 
     if states:
         return True, "US-partial", states
 
-    if _US_SIGNAL_RE.search(combined):
+    # The location field is the stated scope, so it decides first. The
+    # description only counts when the location field names no place at all
+    # ("Remote", "N/A", empty) - otherwise a "US" mention in the body would
+    # override a location of "Japan", say.
+    if _US_SIGNAL_RE.search(location_text):
         return True, "US", []
-
-    if _WORLDWIDE_RE.search(combined):
+    if _NORTH_AMERICA_RE.search(location_text):
+        return None, None, []
+    if _NON_US_PLACE_RE.search(location_text):
+        return False, None, []
+    if _WORLDWIDE_RE.search(location_text) or _LOCATION_GLOBAL_RE.search(location_text):
         return True, "Global", []
 
-    if _NORTH_AMERICA_RE.search(combined):
-        # Ambiguous on its own (could be Canada-only, or one region among
-        # several listed alongside it) - not confident enough to include,
-        # and checked before the bare-region-word rule below so a location
-        # like "Northern America, LATAM, Europe, APAC" stays ambiguous
-        # rather than being read as a confident non-US region.
+    if _MUST_BE_BASED_ABROAD_RE.search(jd_excerpt):
+        return False, None, []
+
+    if _US_SIGNAL_RE.search(jd_excerpt):
+        return True, "US", []
+
+    if _WORLDWIDE_RE.search(jd_excerpt):
+        return True, "Global", []
+
+    if _NORTH_AMERICA_RE.search(jd_excerpt):
+        # Ambiguous on its own (could be Canada-only) - not confident enough.
         return None, None, []
 
-    # The concise location field naming a single non-US region (e.g. just
-    # "Europe") is confident evidence on its own, no "only" qualifier
-    # needed - that field IS the stated scope. A stray region mention
-    # buried in the JD body needs the stronger "<region> only" phrasing to
+    # A stray region mention in the body needs "<region> only" phrasing to
     # count, to avoid false positives from unrelated mentions.
-    if _NON_US_REGION_WORD_RE.search(location_text) or _NON_US_REGION_ONLY_RE.search(combined):
+    if _NON_US_REGION_ONLY_RE.search(jd_excerpt):
         return False, None, []
 
     return None, None, []

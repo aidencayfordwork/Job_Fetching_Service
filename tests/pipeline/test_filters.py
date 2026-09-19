@@ -144,3 +144,44 @@ def test_apply_filters_handles_naive_posted_at_without_crashing():
     outcome = apply_filters(job)
     assert outcome.kept is False
     assert outcome.reason == "posted_too_long_ago"
+
+
+def test_non_us_location_field_is_not_overridden_by_a_us_mention_in_the_description():
+    # Real case: location "Japan", JD mentioned the US-based parent company.
+    job = _job(original_location="Japan", cleaned_job_description="Join our U.S.-based team as we expand.")
+    assert assess_remote_us(job).us_eligible is False
+
+
+def test_marketing_use_of_global_is_not_worldwide_remote():
+    # Real cases: locations "Mexico", "Germany", "Portugal" were read as worldwide
+    # because the description said "a global company".
+    for location in ("Mexico", "Germany", "Portugal", "Dublin, Ireland", "Brazil,  Mexico"):
+        job = _job(original_location=location, cleaned_job_description="We are a global company. Fully remote.")
+        assert assess_remote_us(job).us_eligible is False, location
+    job = _job(original_location="Remote", cleaned_job_description="We are a global company. Fully remote.")
+    assert assess_remote_us(job).us_eligible is None
+
+
+def test_global_in_the_location_field_still_means_worldwide():
+    for location in ("Remote - Global", "Anywhere in the World", "Anywhere"):
+        a = assess_remote_us(_job(original_location=location))
+        assert (a.us_eligible, a.remote_scope) == (True, "Global"), location
+
+
+def test_us_listed_among_other_countries_is_eligible():
+    assert assess_remote_us(_job(original_location="United Kingdom, United States")).us_eligible is True
+
+
+def test_must_be_based_abroad_in_description_excludes():
+    job = _job(original_location="Remote", cleaned_job_description="Remote role. You must be based in Brazil.")
+    assert assess_remote_us(job).us_eligible is False
+
+
+def test_new_mexico_is_a_us_state_not_mexico():
+    assert assess_remote_us(_job(original_location="Albuquerque, New Mexico")).remote_scope == "US-partial"
+
+
+def test_dotted_us_abbreviation_followed_by_a_space_is_a_us_signal():
+    a = assess_remote_us(_job(original_location="U.S. Remote"))
+    assert (a.us_eligible, a.remote_scope) == (True, "US")
+    assert assess_remote_us(_job(original_location="Remote", cleaned_job_description="Not available in the U.S. at this time.")).us_eligible is False

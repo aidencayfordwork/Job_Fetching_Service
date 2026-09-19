@@ -892,5 +892,29 @@ before hashing.
   get probed on the next weekly discovery cycle rather than all at once.
   149 tests passing (unaffected — this is a config-only change).
 
+- Integration with BidFlow (the Job Application Service) — publisher built.
+  BidFlow owns the shared table: this platform upserts verified US-remote
+  jobs into `job_feed.jobs` as `jobfeed_writer` per
+  `docs/bidflow/JOB_FEED_CONTRACT.md` (replica schema in
+  `docs/bidflow/job_feed_schema.sql`; field mapping in
+  `docs/bidflow/FIELD_MAPPING.md`; reply to BidFlow in
+  `docs/bidflow/REPLY_TO_BIDFLOW.md`). `app/publish/`: catalog read live each
+  run, rule-based tagging onto BidFlow's catalog (★ role tags from the title
+  only; technology tags from requirement sections only; unknown real skills
+  sent for BidFlow's admins), row building, and a publisher that sends only
+  changed rows with one savepoint per row. New tables `feed_publications`
+  (feed key pinned at first publish, because cross-source dedup can change
+  `jobs.source` on the same row) and append-only `feed_publish_log`.
+  Scheduled every 10 min when `BIDFLOW_DATABASE_URL` is set.
+  Held back: Adzuna/Jooble (their APIs return 300-500 char snippets), HR
+  template postings, unnamed employers, clearance jobs, anything that fails
+  US-remote re-verification at publish time. Building it surfaced real
+  pipeline bugs, now fixed with regression tests: "global" in marketing text
+  counted as worldwide-remote and a "US" mention in the JD overrode a non-US
+  location field (jobs in Mexico/Germany/Portugal/Japan were being kept);
+  "U.S." never matched when followed by a space; "C" matched inside "C++";
+  the HTML cleaner glued headings to the next paragraph. Verified against a
+  local replica: 102 jobs published, second run sends nothing.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

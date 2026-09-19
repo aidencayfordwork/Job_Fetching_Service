@@ -35,7 +35,8 @@ def _compile_term(canonical: str, category: str, aliases: list[str], case_sensit
     # itself ("Go", "R", "C"); its aliases ("golang", "r language") are
     # unambiguous and must match in any casing, e.g. "Golang".
     def _branch(variant: str, sensitive: bool) -> str:
-        body = rf"(?<![A-Za-z0-9]){re.escape(variant.strip())}(?![A-Za-z0-9])"
+        # "+"/"#" in the lookahead stop "C" matching inside "C++" / "C#".
+        body = rf"(?<![A-Za-z0-9]){re.escape(variant.strip())}(?![A-Za-z0-9+#])"
         return body if sensitive else f"(?i:{body})"
 
     branches = [_branch(canonical, case_sensitive)]
@@ -79,3 +80,20 @@ def match_keywords(*texts: str | None) -> list[str]:
     by_category = match_terms_by_category(*texts)
     flattened = {term for terms in by_category.values() for term in terms}
     return sorted(flattened)
+
+
+@lru_cache(maxsize=1)
+def taxonomy_terms() -> dict[str, tuple[str, tuple[str, ...]]]:
+    """{canonical: (category, aliases)} for every taxonomy term."""
+    data = yaml.safe_load(_TAXONOMY_PATH.read_text())
+    data.pop("case_sensitive_terms", None)
+    return {
+        canonical: (category, tuple(aliases))
+        for category, category_terms in data.items()
+        for canonical, aliases in category_terms.items()
+    }
+
+
+def term_patterns() -> dict[str, re.Pattern[str]]:
+    """{canonical: compiled pattern}, with the same matching rules as match_keywords()."""
+    return {term.canonical: term.pattern for term in _load_compiled_terms()}

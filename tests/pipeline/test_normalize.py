@@ -16,6 +16,15 @@ def test_clean_html_strips_spam_marker():
     assert "BANANA" not in cleaned
 
 
+def test_clean_html_keeps_headings_paragraphs_and_bullets_on_their_own_lines():
+    raw = (
+        '<h2 style="x">About the role</h2><p>Build APIs.</p>'
+        "<h3>Requirements</h3><ul><li>Python</li><li>PostgreSQL&nbsp;&nbsp;</li></ul>"
+        "<style>.a{color:red}</style>"
+    )
+    assert clean_html(raw) == "About the role\n\nBuild APIs.\n\nRequirements\n\n- Python\n- PostgreSQL"
+
+
 def test_clean_html_empty_input():
     assert clean_html(None) == ""
     assert clean_html("") == ""

@@ -937,5 +937,16 @@ before hashing.
   no longer list them. Published company names drop legal suffixes. The
   manual-submission logic moved to `app/pipeline/submission.py`.
 
+- Railway deployment plan: the platform becomes one more service in
+  BidFlow's Railway project, sharing its Postgres (no data migration; it
+  rebuilds itself). Added `railway.json`, `app/serve.py` (listens on `$PORT`
+  over IPv4 and IPv6 - binding "::" through asyncio is IPv6-only), plain
+  `postgresql://` URLs accepted, and `docs/bidflow/bidflow_db_setup.sql`
+  for BidFlow's one-time setup. Fetch and publish loops now yield to the
+  event loop per job so health checks and `/jobs/submit` stay responsive
+  during a fetch. Rehearsed end to end in one database; the rehearsal
+  caught "Georgia" among non-US countries being read as the US state
+  (fixed, and the published job was closed automatically).
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

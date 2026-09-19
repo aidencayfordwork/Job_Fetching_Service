@@ -1,6 +1,7 @@
+import re
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +41,12 @@ class Settings(BaseSettings):
     # the local replica.
     bidflow_ssl: str = "require"
     publish_interval_seconds: int = 10 * 60
+
+    @field_validator("database_url", "bidflow_database_url")
+    @classmethod
+    def _use_asyncpg_driver(cls, url: str) -> str:
+        # Accept plain Postgres URLs as Railway and most hosts print them.
+        return re.sub(r"^postgres(?:ql)?://", "postgresql+asyncpg://", url)
 
 
 @lru_cache

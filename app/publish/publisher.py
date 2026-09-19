@@ -10,6 +10,7 @@ CLOSED/EXPIRED; nothing is ever deleted.
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -126,6 +127,7 @@ async def _run(session: AsyncSession, feed_engine: AsyncEngine, job_ids: list[in
     batch: list[PlannedRow] = []
     for job in jobs:
         planned = _plan(job, publications.get(job.id), pinned, catalog, now, summary)
+        await asyncio.sleep(0)  # tagging is CPU work; keep the API responsive
         if planned is None:
             continue
         pinned[(planned.feed_source, planned.feed_source_job_id)] = job.id

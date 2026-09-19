@@ -7,7 +7,7 @@
 **Status:**
 - **Built:** the publisher, tested against a local copy of BidFlow's `job_feed` schema, connected as `jobfeed_writer`.
 - **Not yet connected** to BidFlow production (§13 lists what's left).
-- **Runs in a dev studio for now** (its database has been wiped four times). Production is the combined deployment on BidFlow's server (§15a); a lost platform database no longer harms BidFlow's feed (§8, reconciliation).
+- **Deployment:** ready for BidFlow's Railway project (§15a); rehearsed end to end. Until then it runs only in a development studio.
 
 ---
 
@@ -21,11 +21,14 @@
 | `docs/bidflow/COLLABORATION.md` | This guide: start here. |
 | `docs/bidflow/JOB_FEED_CONTRACT.md`, `job_feed_schema.sql`, `JOB_PLATFORM_DB_PROMPT.md` | BidFlow's three documents, stored verbatim. |
 | `docs/bidflow/FIELD_MAPPING.md` | Platform field → `job_feed.jobs` column, one page. |
-| `docs/bidflow/REPLY_TO_BIDFLOW.md` | The platform's reply to your §15, including 6 open questions. |
+| `docs/bidflow/REPLY_TO_BIDFLOW.md` | The platform's earlier reply to your §15 (its open questions are now decided in §15 here). |
 | `app/publish/publisher.py` | The publisher: upsert, savepoints, change detection, `verified_at`, status. |
 | `app/publish/feed_row.py` | Row building and the hold-back rules. |
 | `app/publish/tagging.py` | How tags are chosen from your catalog. |
 | `app/publish/catalog.py` | Reads `job_feed.tags` / `tag_aliases` every run. |
+| `app/publish/reconcile.py` | Rebuilds publish records from `job_feed.jobs` if the platform's are lost. |
+| `docs/bidflow/bidflow_db_setup.sql` | One-time database setup BidFlow runs (§15a). |
+| `Dockerfile`, `railway.json` | How the service is built and run on Railway (§15a). |
 | `app/pipeline/filters.py` | US-remote verification, age, role and level gate. |
 | `app/pipeline/dedupe.py`, `app/persistence/repository.py` | Cross-source dedup, upsert, expiry. |
 | `app/db/models.py`, `alembic/versions/` | The platform's own schema. |
@@ -43,7 +46,7 @@
 |---|---|
 | `job_feed` schema, triggers, tag catalog, ranking, bidders, resumes, applications | **BidFlow** |
 | Sources, fetching, parsing, US-remote verification, dedup, tag *choice*, lifecycle, publishing | **Platform** |
-| Platform database (separate PostgreSQL) | **Platform** |
+| Platform tables (`platform` schema in BidFlow's Railway Postgres) | **Platform** |
 | Adding a column to `job_feed.jobs` | **BidFlow**, on the platform's request, optional first |
 
 **Integration surface:**
@@ -108,7 +111,7 @@ BidFlow never needs to call the platform to read jobs. The row in `job_feed.jobs
 
 **US-eligibility order.** The location field decides first; the description counts only when the location names no place.
 1. "Excluding / not available in the US" anywhere → **no**.
-2. US states in the location field → **yes**, US-partial (the states stay in `location_text`).
+2. US states in the location field → **yes**, US-partial (the states stay in `location_text`). "Georgia" listed among other countries, with no US mention, is the country.
 3. Location field says US / U.S. / United States → **yes**.
 4. Location field says North America → **ambiguous** (not published).
 5. Location field names any non-US country, region or major city → **no**.
@@ -334,20 +337,21 @@ All of these require `X-API-Key`; CORS allows all origins.
 
 ## 13. Go-live checklist
 
-**Platform:**
-- [x] Run in its own `platform` schema of a shared database, with its own role (§15a)
+**Platform (done):**
+- [x] Own `platform` schema and login in a shared database (§15a)
 - [x] Reconciliation of publish records from `job_feed.jobs` (R1)
 - [x] Company names without legal suffixes (R6, partly)
 - [x] Faster ATS closing, 2 misses (R4)
-- [x] Dockerfile for `jobfetch-backend` (§15a)
-- [ ] Deploy with BidFlow on the shared server; run one publish; spot-check 20 rows together with BidFlow
+- [x] Railway-ready container: `Dockerfile`, `railway.json`, listens on `$PORT` over IPv4 and IPv6, accepts plain `postgresql://` URLs
+- [x] CI: tests on every push; image published only when they pass
+- [x] Full rehearsal of the Railway setup in one database (§15a)
 
-**BidFlow:**
-- [ ] Run the one-time database setup (§15a) and pass both passwords to the owner
-- [ ] Add `jobfetch-backend` to the combined docker-compose (§15a)
-- [ ] Confirm the proposed answers in §15
-- [ ] Decide how to handle the first-import alert burst (R3)
-- [ ] Add the missing catalog tags (R7)
+**BidFlow (3 steps, §15a):**
+- [ ] Invite the platform owner to the Railway project
+- [ ] Run `docs/bidflow/bidflow_db_setup.sql` once against BidFlow's Postgres
+- [ ] Send the owner the two passwords, privately
+
+**Then:** the platform owner adds `jobfetch-backend` (§15a). The first publish runs within 10 minutes; check ~20 rows on BidFlow's board together.
 
 ---
 
@@ -363,115 +367,118 @@ All of these require `X-API-Key`; CORS allows all origins.
 **Changelog:**
 - 2026-09-19: publisher built and replica-tested; US-remote verification tightened (location field decides first); this guide created.
 - 2026-09-19: decisions recorded (§15); combined one-server, one-database deployment agreed (§15a).
+- 2026-09-19: Railway plan (§15a): one more service in BidFlow's Railway project sharing its Postgres; setup script `docs/bidflow/bidflow_db_setup.sql`; all open questions decided (§15); fixed "Georgia" among non-US countries being read as the US state.
 - 2026-09-19: ready for the combined deployment: `platform` schema support, Dockerfile, reconciliation of publish records, ATS jobs closed after 2 misses, legal suffixes dropped from company names.
 - 2026-09-19: worldwide/"anywhere" jobs are no longer published. Only jobs explicitly for the US qualify (US, U.S., United States or US states named). Jobs listing the US alongside other countries ("US or Canada") still qualify. Worldwide jobs already published are sent as `CLOSED` on the next run.
 
 ---
 
-## 15. Decisions (2026-09-19)
+## 15. Decisions (2026-09-19, all final)
 
-The platform owner has agreed to the answers below. **Decided** items are final. **Proposed** items are BidFlow's to confirm; please reply "agree" or give a different answer.
+The platform owner decided every open question, choosing whatever is most convenient for both sides. No reply is needed; BidFlow can raise any of them later.
 
-| # | Question | Answer | Status |
-|---|---|---|---|
-| 1 | `verified_at`: refresh daily, or only with a real change? | Only with a real change (≤ once a day), so unchanged jobs never re-announce. | Proposed, BidFlow to confirm |
-| 2 | Add missing catalog tags? | Yes: `security` first, then rust, databricks, grpc, mongodb, c++, scala, mysql, ruby, graphql, bigquery, jenkins, redis, elasticsearch. | Proposed, BidFlow to do |
-| 3 | Aggregator-only jobs (link goes to Himalayas/Jobicy/WWR/Remotive, not the employer)? | **Publish them.** The bidder clicks through once more. | **Decided** (owner) |
-| 4 | Store verification evidence / a `NEEDS_REVIEW` queue now? | Later. Ambiguous jobs stay unpublished meanwhile. | Proposed, BidFlow to confirm |
-| 5 | Close ATS jobs after 2 consecutive misses (~6 h) instead of 5 days? | **Yes.** The platform implements it. | **Decided** (owner) |
-| 6 | Who calls `POST /jobs/submit`? | The owner's LinkedIn job providers, through BidFlow, with the platform API key and `source = "linkedin"` only. | **Decided** (owner); BidFlow wires the call |
-| 7 | First import (~100+ jobs at once)? | BidFlow mutes alerts for the first bulk import. | Proposed, BidFlow to do |
-| 8 | Optional columns on `job_feed.jobs`? | Add at least `seniority` and `eligible_states`; `min_years_experience` and `apply_url` are welcome too. The platform starts sending them once they exist. | Proposed, BidFlow to do |
+| # | Question | Decision |
+|---|---|---|
+| 1 | `verified_at` | Set at first publish; refreshed only with a real change, ≤ once a day. Unchanged jobs never re-announce. |
+| 2 | Missing catalog tags | Add them whenever convenient (`security` first). Until then the platform sends them as unknown terms, and BidFlow's rows pick them up automatically once the tags exist. |
+| 3 | Aggregator-only jobs | Published; `job_url` is the aggregator page. |
+| 4 | Verification evidence / `NEEDS_REVIEW` queue | Later. Ambiguous jobs stay unpublished. |
+| 5 | Closing | ATS jobs close after 2 complete board fetches that no longer list them (~6 h). Done. |
+| 6 | Manual (LinkedIn) jobs | BidFlow's backend calls `POST /jobs/submit` over Railway's private network with the platform API key and `source = "linkedin"`. |
+| 7 | First import | No special handling. Deploy before bidders rely on the board; otherwise the first run's jobs simply arrive as new jobs once. |
+| 8 | Optional columns (`seniority`, `eligible_states`, …) | Later, whenever BidFlow adds them; the platform then starts sending them. |
+| 9 | TLS to the database | Not used inside Railway's private network (`BIDFLOW_SSL=disable`); traffic never leaves Railway. |
 
 ---
 
-## 15a. Combined deployment (decided)
+## 15a. Deployment on Railway (decided)
 
-Both services go on **one server, deployed together, sharing one PostgreSQL database**, but as **two separate backends**. BidFlow's frontend and backend are one service, and the job-fetch backend (scheduler plus small API) is another. A crash or redeploy of one doesn't take down the other, and each side keeps its own code.
+BidFlow already runs on Railway. The platform becomes **one more service in BidFlow's Railway project**, deployed from this repo and sharing BidFlow's Railway Postgres. There's no separate server.
 
 ```
-one server, one docker-compose
-├── bidflow-frontend
-├── bidflow-backend
-├── jobfetch-backend        (this repo)
-└── postgres (one database)
-    ├── schema job_feed     owned by BidFlow; jobfetch writes here only as jobfeed_writer
-    ├── BidFlow's schemas   no access for jobfetch
-    └── schema platform     jobfetch's own tables; no access needed by BidFlow
+BidFlow's Railway project
+├── bidflow-frontend, bidflow-backend   ← BidFlow's repo; BidFlow owner
+├── jobfetch-backend                    ← this repo; platform owner
+└── Postgres (Railway)                  ← one database
+    ├── job_feed                        BidFlow's; jobfetch writes here only as jobfeed_writer
+    ├── BidFlow's other schemas         no access for jobfetch
+    └── platform                        jobfetch's own tables (created automatically on first start)
 ```
 
-**BidFlow's one-time database setup** (run as the database owner):
+**No data migration.** The platform's current development data isn't needed. On first start it creates its tables in `platform`, re-discovers company boards, fetches jobs and publishes them. Everything re-fetchable is rebuilt within a few hours.
 
-```sql
-CREATE ROLE jobfetch_app LOGIN PASSWORD '<secret-1>';
-CREATE SCHEMA platform AUTHORIZATION jobfetch_app;
--- jobfeed_writer: created by BidFlow's own migrations, same grants as job_feed_schema.sql
--- ALTER ROLE jobfeed_writer PASSWORD '<secret-2>';
-```
+### BidFlow owner: 3 steps
 
-- `jobfetch_app` owns `platform` and gets nothing else. Its migrations, including its Alembic version table, stay inside `platform`, so they never collide with BidFlow's.
-- The platform connects with **two logins**: `jobfetch_app` for its own schema, and `jobfeed_writer` for the feed. The contract boundary stays exactly as before, even inside one database.
-- Deduplication, verification and tagging all happen in `platform`. `job_feed.jobs` only ever receives one row per opening.
+1. **Invite** the platform owner to the Railway project (Project Settings → Members).
+2. **Run the setup script once** against the Railway Postgres. It is in this repo: `docs/bidflow/bidflow_db_setup.sql`.
+   ```bash
+   psql "<Postgres DATABASE_PUBLIC_URL from Railway>" -v ON_ERROR_STOP=1 \
+        -v jobfetch_password='<secret-1>' -v writer_password='<secret-2>' \
+        -f bidflow_db_setup.sql
+   ```
+   It creates:
+   - `jobfetch_app`, which owns only the `platform` schema;
+   - the password for `jobfeed_writer`, with exactly the grants from `job_feed_schema.sql`.
 
-**jobfetch-backend environment** (secrets are passed by the deployment, never committed):
+   It prints a check table at the end. It's safe to re-run, and it needs BidFlow's `job_feed` schema to exist already.
+3. **Send** the two passwords to the platform owner, privately.
 
-| Variable | Value |
-|---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://jobfetch_app:<secret-1>@postgres:5432/<db>` |
-| `DATABASE_SCHEMA` | `platform` |
-| `BIDFLOW_DATABASE_URL` | `postgresql+asyncpg://jobfeed_writer:<secret-2>@postgres:5432/<db>` |
-| `BIDFLOW_SSL` | `require` if the database serves TLS; `disable` only on a private docker network with no TLS |
-| `API_KEY` | Shared with BidFlow's backend, for `POST /jobs/submit` |
-| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY` | Owner supplies |
+### Platform owner: add the service
 
-**Ready.** The repo root has a `Dockerfile`. On start, the container:
-1. applies the platform's migrations (inside `platform`);
-2. seeds the source list;
-3. serves the API and scheduler on port 8000, as a non-root user, with a health check on `/health`.
+1. In the project: **New → GitHub Repo → `aidencayfordwork/Job_Fetching_Service`** (branch `main`). Railway reads `railway.json`, which sets:
+   - the Dockerfile build;
+   - the `/health` check;
+   - restart on failure.
+2. **Variables** (Railway fills `${{…}}` references in; use the Postgres service's actual name):
 
-Rehearsed with a role that owns only `platform` and can't create anything in `public`: all tables land in `platform`, and the full test suite passes.
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | `postgresql://jobfetch_app:<secret-1>@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}` |
+   | `DATABASE_SCHEMA` | `platform` |
+   | `BIDFLOW_DATABASE_URL` | `postgresql://jobfeed_writer:<secret-2>@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}` |
+   | `BIDFLOW_SSL` | `disable` |
+   | `PORT` | `8000` (a fixed port gives BidFlow a stable internal address) |
+   | `API_KEY` | a new random secret, shared with BidFlow's backend for `POST /jobs/submit` |
+   | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY` | the owner's keys |
+3. **Settings:**
+   - keep **1 replica**, because the scheduler runs inside the service and 2 replicas would fetch and publish twice;
+   - turn on **"Wait for CI"**, so Railway deploys only after this repo's tests pass;
+   - no public domain is needed.
+4. **Deploy.** On start the container:
+   1. applies migrations inside `platform`;
+   2. seeds the sources, with Adzuna/Jooble auto-enabled when their keys are set;
+   3. starts fetching.
 
-Service entry for the combined `docker-compose.yml`:
+   The first publish into `job_feed.jobs` follows within 10 minutes.
 
-```yaml
-  jobfetch-backend:
-    image: ghcr.io/aidencayfordwork/job_fetching_service:latest
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+asyncpg://jobfetch_app:${JOBFETCH_APP_PASSWORD}@postgres:5432/${DB_NAME}
-      DATABASE_SCHEMA: platform
-      BIDFLOW_DATABASE_URL: postgresql+asyncpg://jobfeed_writer:${JOBFEED_WRITER_PASSWORD}@postgres:5432/${DB_NAME}
-      BIDFLOW_SSL: disable        # private docker network; use require if Postgres serves TLS
-      API_KEY: ${JOBFETCH_API_KEY}
-      ADZUNA_APP_ID: ${ADZUNA_APP_ID}
-      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY}
-      JOOBLE_API_KEY: ${JOOBLE_API_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    # Only BidFlow's backend calls it (POST /jobs/submit): no public port needed.
-```
+**BidFlow's backend calling the platform** (manual LinkedIn jobs only):
+`POST http://jobfetch-backend.railway.internal:8000/jobs/submit`, with header `X-API-Key: <API_KEY>` (§9). Use the service's actual name in the hostname.
 
-The change-notification channel is prefixed (`platform_job_events`), so it can't clash with BidFlow's.
+### Rehearsed
 
-**Who manages what after deployment**
+The exact setup was rehearsed locally on 2026-09-19:
+- a fresh database with BidFlow's `job_feed` schema and the setup script;
+- the published container started with plain `postgresql://` URLs and a Railway-style `PORT`.
 
-| | Job-fetch owner | BidFlow owner |
+Results:
+- all platform tables landed in `platform`, nothing in `public`, and `job_feed` stayed untouched;
+- `jobfetch_app` could create only in `platform`, and `jobfeed_writer` could not delete;
+- the first run published 51 jobs into `job_feed.jobs` in the same database;
+- a restart re-sent nothing;
+- health answered on both IPv4 and IPv6.
+
+The rehearsal also caught one real bug, now fixed: a job listed for "Georgia, Poland, … Uzbekistan" had been read as the US state Georgia. It was closed automatically on the next run.
+
+### Who manages what
+
+| | Platform owner | BidFlow owner |
 |---|---|---|
-| Code, repo, releases | This repo | BidFlow's repo |
-| Container | `jobfetch-backend` only | BidFlow's containers |
-| Database | `platform` schema (as `jobfetch_app`) | Everything else, and backups of the whole database |
-| Server + combined `docker-compose.yml` | Needs access to update its own container | Owns them |
+| Code and releases | This repo; each push to `main` is tested, then Railway redeploys only `jobfetch-backend` | BidFlow's repo and services |
+| Database | `platform` schema (as `jobfetch_app`) | Everything else, plus Railway backups for the whole database |
+| Railway project | Member; touches only `jobfetch-backend` | Owner |
 | Contract (`job_feed.jobs`, tags) | Changes agreed by both first | Changes agreed by both first |
 
-**Updating or rolling back the job-fetch service.** Each push to this repo's `main` runs lint and the full test suite (CI). Only if they pass is a new image published, as `ghcr.io/aidencayfordwork/job_fetching_service:latest` plus `:sha-<commit>`. On the server, this touches only that one container; BidFlow keeps running:
-
-```bash
-docker compose pull jobfetch-backend && docker compose up -d jobfetch-backend
-# roll back: set the image tag to a previous :sha-<commit>, then the same command
-```
-
-Database migrations run automatically when the new container starts, and only inside `platform`.
+**Roll back** in Railway: Deployments → pick an earlier deployment → Redeploy. Migrations only ever add to `platform`. The published image `ghcr.io/aidencayfordwork/job_fetching_service` (`:latest`, `:sha-<commit>`) also works on hosts other than Railway, e.g. with docker-compose.
 
 ---
 

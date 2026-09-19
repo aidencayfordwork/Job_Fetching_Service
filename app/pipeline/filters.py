@@ -74,6 +74,7 @@ _NON_US_PLACE = (
     r"|london|berlin|toronto|vancouver|montreal|bangalore|bengaluru|hyderabad|pune|tel\s+aviv"
     r"|amsterdam|paris|madrid|barcelona|lisbon|warsaw|krakow|bucharest|dublin|sydney|melbourne"
     r"|tokyo|s[aã]o\s+paulo|buenos\s+aires|bogot[aá]|manila"
+    r"|uzbekistan|kazakhstan|kyrgyzstan|armenia|azerbaijan|tbilisi|moldova|belarus|russia"
 )
 _NON_US_PLACE_RE = re.compile(rf"\b(?:{_NON_US_PLACE})\b", re.IGNORECASE)
 _MUST_BE_BASED_ABROAD_RE = re.compile(
@@ -144,6 +145,9 @@ def _assess_us_eligibility(location_text: str, jd_excerpt: str) -> tuple[bool | 
     # Francisco, New York, and London") unrelated to this job's actual
     # eligibility scope.
     states = _extract_states(location_text)
+    if "georgia" in states and _NON_US_PLACE_RE.search(location_text) and not _US_SIGNAL_RE.search(location_text):
+        # Listed among other countries ("Georgia, Poland, Sweden"), it's the country.
+        states.remove("georgia")
     if states:
         return True, "US-partial", states
 

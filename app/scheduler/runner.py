@@ -7,6 +7,7 @@ run or affect any other source.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,6 +82,9 @@ async def _run_source(
         async for raw in connector.fetch(since):
             jobs_fetched += 1
             outcome = await _process_one(connector, raw, dedupe_candidates, per_job_session, seen)
+            # Parsing/filtering is CPU work with no await for filtered-out jobs;
+            # yield so the API (health checks, /jobs/submit) stays responsive.
+            await asyncio.sleep(0)
             if outcome == "new":
                 jobs_new += 1
             elif outcome == "updated":

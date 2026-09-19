@@ -195,3 +195,12 @@ def test_dotted_us_abbreviation_followed_by_a_space_is_a_us_signal():
     a = assess_remote_us(_job(original_location="U.S. Remote"))
     assert (a.us_eligible, a.remote_scope) == (True, "US")
     assert assess_remote_us(_job(original_location="Remote", cleaned_job_description="Not available in the U.S. at this time.")).us_eligible is False
+
+
+def test_georgia_listed_among_countries_is_the_country():
+    # Real case: a job for these countries was published as US-partial.
+    job = _job(original_location="Georgia, Poland, Singapore, Sri Lanka, Sweden, United Kingdom, Uzbekistan")
+    assert assess_remote_us(job).us_eligible is False
+    assert assess_remote_us(_job(original_location="Tbilisi, Georgia")).us_eligible is False
+    assert assess_remote_us(_job(original_location="Atlanta, Georgia")).remote_scope == "US-partial"
+    assert assess_remote_us(_job(original_location="Georgia or Canada, United States")).us_eligible is True

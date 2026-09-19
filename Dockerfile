@@ -19,6 +19,7 @@ USER jobfetch
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"
+  CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT', '8000'), timeout=4)"
 
-CMD ["sh", "-c", "alembic upgrade head && python -m app.db.seed && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Listens on $PORT (default 8000) over IPv4 and IPv6 (app/serve.py).
+CMD ["sh", "-c", "alembic upgrade head && python -m app.db.seed && exec python -m app.serve"]

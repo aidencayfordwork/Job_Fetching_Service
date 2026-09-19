@@ -7,7 +7,7 @@
 **Status:**
 - **Built:** the publisher, tested against a local copy of BidFlow's `job_feed` schema, connected as `jobfeed_writer`.
 - **Not yet connected** to BidFlow production (§13 lists what's left).
-- **Runs in a dev studio** whose database has been wiped twice. The code is safe in Git; the data isn't.
+- **Runs in a dev studio for now** (its database has been wiped four times). Production is the combined deployment on BidFlow's server (§15a); a lost platform database no longer harms BidFlow's feed (§8, reconciliation).
 
 ---
 
@@ -152,10 +152,10 @@ jobs ────┼─< job_alt_sources             (other sightings of the sam
 | `sources` | One row per source | `name` (never renamed), `kind`, `fetch_interval_seconds`, `enabled` |
 | `source_runs` | Append-only run log | started/finished, `status`, fetched / new / updated / filtered-out counts, error |
 | `ats_companies` | Discovered employer boards | `ats_platform`, `board_token`, `source_of_discovery`, `enabled` |
-| `jobs` | **One row per canonical opening** | `source`, `source_job_id` (unique together), company, title, URLs, level, role_category, stacks, remote/US scope, eligible_states, salary fields, `posted_at`, first/last_seen, raw and cleaned description, `matched_keywords`, `active`, `canonical_fingerprint` |
+| `jobs` | **One row per canonical opening** | `source`, `source_job_id` (unique together), company, title, URLs, level, role_category, stacks, remote/US scope, eligible_states, salary fields, `posted_at`, first/last_seen, raw and cleaned description, `matched_keywords`, `active`, `canonical_fingerprint`, `ats_board_token`, `consecutive_misses` |
 | `job_alt_sources` | Other (source, id, url) sightings merged into a job | unique (`source`, `source_job_id`) |
 | `feed_publications` | Publish state per job | `feed_source` + `feed_source_job_id` (**pinned**, unique), `sent_hash`, `last_result`, `feed_status` (what BidFlow holds), `verified_at`, first published |
-| `feed_publish_log` | Append-only | `result` (INSERTED/UPDATED/UNCHANGED/REJECTED), status sent, `constraint_name`, message |
+| `feed_publish_log` | Append-only | feed key, `result` (INSERTED/UPDATED/UNCHANGED/REJECTED/ADOPTED/ORPHAN_CLOSED), status sent, `constraint_name`, message |
 
 **Identity and dedup:**
 - **Within a source:** `(source, source_job_id)` identifies a job. A re-fetch updates the row in place.
@@ -163,7 +163,8 @@ jobs ────┼─< job_alt_sources             (other sightings of the sam
 - **Pinned key:** because promotion changes `jobs.source`, the BidFlow key is taken at the first publish and stored in `feed_publications`. It is never changed afterwards, so BidFlow keeps one row per opening.
 
 **Lifecycle in the platform DB:**
-- A job not seen for 5 days → inactive.
+- **ATS jobs (Greenhouse, Lever, Ashby, SmartRecruiters):** closed after 2 consecutive complete fetches of their board that no longer list them (~6 h). A board that fails to load, or holds a job that can't be parsed, never counts as a miss.
+- **Any job** not seen for 5 days → inactive (the rule that still applies to aggregators).
 - `posted_at` older than 7 days → inactive.
 - Nothing is deleted.
 
@@ -178,6 +179,12 @@ The platform keeps its own 167-term taxonomy (`config/keyword_taxonomy.yaml`, 14
 ## 8. Publishing into `job_feed.jobs`
 
 **Each run (every 10 min, when `BIDFLOW_DATABASE_URL` is set):**
+0. **Reconcile** (`app/publish/reconcile.py`). Look for rows in `job_feed.jobs` under the platform's sources that the platform has no record of, which happens only if its database was lost or restored. For each such row:
+   - **Re-link** it to the platform job with the same key, a recorded alternate key, or the same company plus a near-identical title (≥90). BidFlow's copy is hashed, so an unchanged job isn't re-sent: no new rows, no alert burst.
+   - **Re-import** it if it's a manual (LinkedIn) job, from BidFlow's copy through the normal submission checks.
+   - **Close** it if nothing matches, or if it duplicates an already published job (`CLOSED`, or `EXPIRED` if older than 7 days). This happens only after every source has completed a run since the data was rebuilt, so a job isn't closed just because it hasn't been re-fetched yet.
+
+   With nothing missing, this step is one key-only `SELECT`.
 1. Read the active tag catalog and its aliases from BidFlow. Retired (`is_active = false`) tags are ignored.
 2. Build a row for every active job and every job BidFlow currently holds.
 3. Hash the writer columns, excluding `verified_at`. If the hash equals the last one sent, **don't send** (a rejected row isn't retried until the job changes).
@@ -191,7 +198,7 @@ The platform keeps its own 167-term taxonomy (`config/keyword_taxonomy.yaml`, 14
 | `source`, `source_job_id` | Pinned key: ATS or board id; manual jobs use `linkedin` + SHA-256 of the URL |
 | `job_url` | Posting URL, forced to https; `utm_*`, `ref`, `gh_src`, `source`, `src`, `lever-*` and the fragment removed |
 | `jd_text` | Full description as plain text: headings and paragraphs on their own lines, list items as `- ` lines. Never truncated. |
-| `company` | Display name as the source gives it (see risk R6) |
+| `company` | Display name, with trailing legal suffixes (Inc, LLC, Ltd, Corp, PLC, PBC, GmbH) removed, so "Stripe, Inc." and "Stripe" are one employer for `company_key` (see R6) |
 | `title` | As posted, minus trailing "(Remote)" / "- Remote, US" / requisition ids / emoji |
 | `country_code`, `work_type` | `US`, `REMOTE` |
 | `location_text` | The posting's own wording; if empty, "Remote (US)" / "Remote (US, some states)" |
@@ -286,7 +293,7 @@ All of these require `X-API-Key`; CORS allows all origins.
 | `job_url` canonical https, tracking removed | Met | |
 | Aggregator → publish the employer's version | Partial | Only when the employer ATS was also fetched (Q3) |
 | Title noise only removed | Met | |
-| `company` = real employer, one spelling per employer | Partial | Real names; spelling not unified across sources (R6) |
+| `company` = real employer, one spelling per employer | Partial | Legal suffixes removed; brand variants ("Chime Financial" vs "Chime") not yet unified (R6) |
 | `employment_type` values | Met | Mostly null (sources rarely state it) |
 | `posted_at` with offset | Met | 102/102 had it |
 | Salary annual USD only | Met | |
@@ -295,13 +302,13 @@ All of these require `X-API-Key`; CORS allows all origins.
 | Tag reasons stored (if AI) | Not needed | No AI used; rules are in code |
 | Read catalog every run, no stale cache | Met | |
 | Status lifecycle; never delete; reactivation → `ACTIVE` | Met | |
-| Close after gone on 2 consecutive checks | Deviation | Closed after 5 days unseen (R4) |
+| Close after gone on 2 consecutive checks | Met for ATS | 2 complete board fetches (~6 h); aggregators still 5 days unseen |
 | Re-check every `ACTIVE` job daily | Met for ATS | Full boards every 3 h; aggregators rely on the 5-day unseen rule |
 | Keep raw postings for re-extraction | Partial | Raw description kept on `jobs`; full payload table not written |
 | Cross-source dedup, publish one member, ATS preferred | Met | |
 | Reposts under a new id → new job | Partial | New job unless the old one is still active with the same company + title (then merged) |
 | Quality filters §6 (expired, templates, unnamed employer, unreadable) | Partial | No explicit "no longer accepting" / evergreen detection |
-| Platform DB style §12 (uuid PKs, CHECK status, named constraints, own schema, models-match-migrations test, separate crawler role) | Deviation | Integer/bigint PKs, no CHECK on status columns, default `public` schema, no such test, one app DB role. Doesn't affect BidFlow's data. |
+| Platform DB style §12 (uuid PKs, CHECK status, named constraints, own schema, models-match-migrations test, separate crawler role) | Partial | Own `platform` schema and role (§15a); still integer/bigint PKs, no CHECK on status columns, no models-match-migrations test. Doesn't affect BidFlow's data. |
 | Never write derived columns, never send scores | Met | |
 | Robots/ToS, honest User-Agent, backoff on 429/5xx | Met | Official APIs only; up to 4 attempts with exponential backoff and jitter |
 
@@ -311,12 +318,12 @@ All of these require `X-API-Key`; CORS allows all origins.
 
 | # | Risk | Effect on BidFlow | Mitigation | Status |
 |---|---|---|---|---|
-| R1 | Platform DB wiped (dev studio) | Pinned keys lost: re-found jobs may get a new key (a **second live row**; the old row is never closed), and every job is re-sent with a new `verified_at` (**re-announcement burst**) | Durable hosting with backups; on startup, rebuild `feed_publications` from the platform's own rows in `job_feed.jobs` | **Open, go-live blocker** |
+| R1 | Platform DB lost or restored from an old backup | Would cause duplicate live rows, stale rows never closed, and a re-announcement burst | Reconciliation at the start of every publish run rebuilds the records from `job_feed.jobs` (tested, §8); production data sits in BidFlow's backed-up database (§15a) | **Done** |
 | R2 | Stored jobs not re-checked when rules tighten | None for BidFlow (publish-time re-check closes them); the platform's own dashboard shows stale jobs | Re-verification sweep each fetch cycle | Open |
 | R3 | First publish inserts ~100 rows at once | One burst of "new job" alerts | BidFlow may want to mute alerts for the first import, or the platform trickles the first load | **Needs BidFlow decision** |
-| R4 | Closing is slow (5 days unseen) | Filled jobs stay on the board up to ~5 days | Close ATS jobs after 2 consecutive misses (full boards every 3 h) | Open (planned) |
+| R4 | Closing was slow (5 days unseen) | Filled jobs stayed on the board up to ~5 days | ATS jobs close after 2 consecutive complete board fetches (~6 h); aggregator jobs still 5 days | **Done for ATS** |
 | R5 | Aggregator-only jobs link to the aggregator page | Bidder lands on Himalayas, Jobicy, etc., not the employer | Follow aggregator links to the employer later, or hold these back | **Needs BidFlow decision (Q3)** |
-| R6 | Company spelling differs by source ("Chime Financial, Inc" vs "Chime") | `company_key` differs, so past-employer exclusion and same-company warnings can miss | Strip legal suffixes and unify spelling per employer before publishing | Open |
+| R6 | Company spelling differs by source ("Stripe, Inc." vs "Stripe"; "Chime Financial" vs "Chime") | `company_key` differs, so past-employer exclusion and same-company warnings can miss | Legal suffixes are removed before publishing (done). Brand variants need an alias list, which could live in BidFlow or here. | **Partly done** |
 | R7 | Catalog gaps (no security tag; rust, mongodb, graphql, c++, scala, mysql, redis…) | Those jobs rank low or have no tags | BidFlow adds tags or aliases; existing rows pick them up automatically | **Needs BidFlow decision (Q2)** |
 | R8 | Rule-based tagging edge cases | A stray tag from a company pitch before the first heading; "We Go deep" read as Go | Section filtering; ★ from title only; report bad tags (§14) | Accepted, monitored |
 | R9 | `POST /jobs/submit` callers send ad-hoc `source` values | New source names appear in BidFlow | Callers use `linkedin` only | **Needs agreement (Q6)** |
@@ -328,15 +335,17 @@ All of these require `X-API-Key`; CORS allows all origins.
 ## 13. Go-live checklist
 
 **Platform:**
-- [ ] Durable hosting for the app and its Postgres, with backups (R1)
-- [ ] Startup reconciliation of `feed_publications` from `job_feed.jobs` (R1)
-- [ ] Unified company display names (R6)
-- [ ] Faster ATS closing, 2 misses (R4)
-- [ ] Set `BIDFLOW_DATABASE_URL` + `BIDFLOW_SSL=require` in `.env`; run one publish; spot-check 20 rows together with BidFlow
+- [x] Run in its own `platform` schema of a shared database, with its own role (§15a)
+- [x] Reconciliation of publish records from `job_feed.jobs` (R1)
+- [x] Company names without legal suffixes (R6, partly)
+- [x] Faster ATS closing, 2 misses (R4)
+- [x] Dockerfile for `jobfetch-backend` (§15a)
+- [ ] Deploy with BidFlow on the shared server; run one publish; spot-check 20 rows together with BidFlow
 
 **BidFlow:**
-- [ ] Send host, port, database and the `jobfeed_writer` password to the owner
-- [ ] Answer Q1–Q6 (`REPLY_TO_BIDFLOW.md`) and Q7–Q8 below
+- [ ] Run the one-time database setup (§15a) and pass both passwords to the owner
+- [ ] Add `jobfetch-backend` to the combined docker-compose (§15a)
+- [ ] Confirm the proposed answers in §15
 - [ ] Decide how to handle the first-import alert burst (R3)
 - [ ] Add the missing catalog tags (R7)
 
@@ -354,6 +363,7 @@ All of these require `X-API-Key`; CORS allows all origins.
 **Changelog:**
 - 2026-09-19: publisher built and replica-tested; US-remote verification tightened (location field decides first); this guide created.
 - 2026-09-19: decisions recorded (§15); combined one-server, one-database deployment agreed (§15a).
+- 2026-09-19: ready for the combined deployment: `platform` schema support, Dockerfile, reconciliation of publish records, ATS jobs closed after 2 misses, legal suffixes dropped from company names.
 - 2026-09-19: worldwide/"anywhere" jobs are no longer published. Only jobs explicitly for the US qualify (US, U.S., United States or US states named). Jobs listing the US alongside other countries ("US or Canada") still qualify. Worldwide jobs already published are sent as `CLOSED` on the next run.
 
 ---
@@ -414,7 +424,35 @@ CREATE SCHEMA platform AUTHORIZATION jobfetch_app;
 | `API_KEY` | Shared with BidFlow's backend, for `POST /jobs/submit` |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY` | Owner supplies |
 
-The Dockerfile and the platform-side schema support are being added now (§13); this section will say when they're ready.
+**Ready.** The repo root has a `Dockerfile`. On start, the container:
+1. applies the platform's migrations (inside `platform`);
+2. seeds the source list;
+3. serves the API and scheduler on port 8000, as a non-root user, with a health check on `/health`.
+
+Rehearsed with a role that owns only `platform` and can't create anything in `public`: all tables land in `platform`, and the full test suite passes.
+
+Service entry for the combined `docker-compose.yml`:
+
+```yaml
+  jobfetch-backend:
+    build: https://github.com/aidencayfordwork/Job_Fetching_Service.git#main
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://jobfetch_app:${JOBFETCH_APP_PASSWORD}@postgres:5432/${DB_NAME}
+      DATABASE_SCHEMA: platform
+      BIDFLOW_DATABASE_URL: postgresql+asyncpg://jobfeed_writer:${JOBFEED_WRITER_PASSWORD}@postgres:5432/${DB_NAME}
+      BIDFLOW_SSL: disable        # private docker network; use require if Postgres serves TLS
+      API_KEY: ${JOBFETCH_API_KEY}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY}
+      JOOBLE_API_KEY: ${JOOBLE_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Only BidFlow's backend calls it (POST /jobs/submit): no public port needed.
+```
+
+The change-notification channel is prefixed (`platform_job_events`), so it can't clash with BidFlow's.
 
 ---
 

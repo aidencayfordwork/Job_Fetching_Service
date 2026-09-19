@@ -18,5 +18,23 @@ services:
       timeout: 5s
       retries: 10
 
+  # Local run of the backend exactly as it ships: `docker compose --profile app up -d`.
+  # In the combined deployment BidFlow's compose runs this image instead
+  # (docs/bidflow/COLLABORATION.md §15a).
+  app:
+    profiles: ["app"]
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://jobfetch:jobfetch@db:5432/jobfetch
+      BIDFLOW_DATABASE_URL: postgresql+asyncpg://jobfeed_writer:local-only-change-me@db:5432/bidflow_replica
+      BIDFLOW_SSL: disable
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:

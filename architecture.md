@@ -924,5 +924,18 @@ before hashing.
   alongside other countries ("US or Canada") still qualify. Stricter than
   BidFlow's §5; documented in docs/bidflow/COLLABORATION.md.
 
+- Combined deployment readiness (one server, one Postgres shared with
+  BidFlow, two backends): `DATABASE_SCHEMA` puts every platform table,
+  Alembic's version table included, in a `platform` schema (rehearsed with a
+  role that owns only that schema); a `Dockerfile` (migrate, seed, serve) and
+  a compose `app` profile; the NOTIFY channel is prefixed. Publishing gained
+  reconciliation (`app/publish/reconcile.py`): lost publish records are
+  rebuilt from `job_feed.jobs` (re-link by key / alternate key / company +
+  title, re-import manual jobs, close unmatched rows only after a full fetch
+  cycle) so a database loss can't cause duplicates, stuck jobs or an alert
+  burst. ATS jobs now close after 2 consecutive complete board fetches that
+  no longer list them. Published company names drop legal suffixes. The
+  manual-submission logic moved to `app/pipeline/submission.py`.
+
 Repo: https://github.com/aidencayfordwork/Job_Fetching_Service (commit +
 push after each phase).

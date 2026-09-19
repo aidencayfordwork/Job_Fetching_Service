@@ -8,7 +8,7 @@ Code: `app/publish/feed_row.py` (row), `app/publish/tagging.py` (tags), `app/pub
 | `source_job_id` | `feed_publications.feed_source_job_id` | `jobs.source_job_id` at the first publish, pinned. ATS/board ids as given; manual submissions (`POST /jobs/submit`) use SHA-256 of the URL. |
 | `job_url` | `source_url`, else `direct_apply_url` | Must be http(s); forced to `https`; `utm_*`, `ref`, `gh_src`, `source`, `src`, `lever-*` params and `#fragment` removed. |
 | `jd_text` | `raw_job_description` | HTML → plain text: headings/paragraphs on their own lines, list items as `- ` lines, scripts/styles dropped, entities decoded (double-escaped Greenhouse HTML handled). Never truncated. |
-| `company` | `company_name` | Trimmed display name as the source gives it. |
+| `company` | `company_name` | Display name with trailing legal suffixes (Inc, LLC, Ltd, Corp, PLC, PBC, GmbH) removed, so BidFlow's `company_key` sees one employer. |
 | `title` | `job_title` | Only trailing noise removed: "(Remote)", "- Remote, US", "US Remote", "(US)", requisition ids, trailing emoji. |
 | `country_code` | — | Always `US` (only verified US-remote jobs are published). |
 | `work_type` | — | Always `REMOTE`. |
